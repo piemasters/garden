@@ -1,0 +1,47 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --font-serif: "Fraunces", "Iowan Old Style", Palatino, serif;
+  --font-sans: "Outfit", "Avenir Next", "Segoe UI", sans-serif;
+  --color-paper: #f3efe6;
+  --color-ink: #1c2822;
+  --color-leaf: #2c6b4a;
+  --color-leaf-dark: #1e4632;
+  --color-soil: #8d5b3c;
+  --color-clay: #a33b32;
+  --color-mist: #e7f0e6;
+  --color-line: #d9d0c3;
+  --color-card: #fffaf3;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+  font-weight: 560;
+  letter-spacing: -0.02em;
+}
