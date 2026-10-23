@@ -78,6 +78,8 @@ export interface Bed {
   name: string;
   points: Point[];
   lightOverride: SunLevel | null;
+  /** Fill colour as #rrggbb. Missing means the default soil brown. */
+  color?: string;
 }
 
 export interface Placement {
@@ -115,6 +117,8 @@ export interface Garden {
   buildingsLoaded: boolean;
   buildingError: string | null;
   showUnsuitable: boolean;
+  /** Plan labels on each bed. Missing means hidden. */
+  showBedNames?: boolean;
   boundary: Point[] | null;
   attribution: string | null;
 }

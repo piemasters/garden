@@ -1,5 +1,35 @@
 import { describe, expect, it } from "vite-plus/test";
-import { fromLocalMetres, smallestOutlineAt, toLocalMetres } from "./geometry";
+import {
+  angledRectangle,
+  distance,
+  fillPoints,
+  finishedStroke,
+  formatSpacing,
+  formatBearing,
+  formatSize,
+  formatOffset,
+  formatTurn,
+  fromLocalMetres,
+  placedRectangle,
+  plantingSpacing,
+  pointInPolygon,
+  rectangleSize,
+  adjustHandles,
+  rotatePoints,
+  rotatedRectangle,
+  scaleLength,
+  scalePoints,
+  snapOffset,
+  translatePoints,
+  snapScale,
+  simplifyStroke,
+  smallestOutlineAt,
+  snapAngle,
+  snappedEdge,
+  snapPoint,
+  spanSize,
+  toLocalMetres,
+} from "./geometry";
 
 describe("map coordinates", () => {
   it("converts a local point back to the same latitude and longitude", () => {
@@ -31,5 +61,143 @@ describe("map coordinates", () => {
     expect(smallestOutlineAt({ x: 15, y: 15 }, choices)?.label).toBe("inner");
     expect(smallestOutlineAt({ x: 50, y: 50 }, choices)?.label).toBe("outer");
     expect(smallestOutlineAt({ x: 150, y: 150 }, choices)).toBeNull();
+  });
+});
+
+describe("drawing sizes", () => {
+  it("snaps a point to the nearest half metre", () => {
+    expect(snapPoint({ x: 1.2, y: -0.8 })).toEqual({ x: 1, y: -1 });
+    expect(snapPoint({ x: 2.25, y: 3.8 })).toEqual({ x: 2.5, y: 4 });
+  });
+
+  it("places a 2 by 4 rectangle from the snapped corner", () => {
+    const points = placedRectangle({ x: 0.2, y: 0.4 }, 2, 4);
+    expect(spanSize(points)).toEqual({ width: 2, depth: 4 });
+    expect(points[0]).toEqual({ x: 0, y: 0.5 });
+  });
+
+  it("formats whole metres without a decimal", () => {
+    expect(formatSize(2, 4)).toBe("2 × 4 m");
+    expect(formatSize(2.5, 1.2)).toBe("2.5 × 1.2 m");
+  });
+
+  it("picks a scale bar that fits the view", () => {
+    expect(scaleLength(30)).toBe(5);
+    expect(scaleLength(8)).toBe(2);
+    expect(scaleLength(120)).toBe(20);
+  });
+
+  it("snaps a side to 5° and half-metre steps", () => {
+    const edge = snappedEdge({ x: 0, y: 0 }, { x: 0, y: 3.2 });
+    expect(edge?.length).toBe(3);
+    expect(edge?.end).toEqual({ x: 0, y: 3 });
+    expect(formatBearing(edge?.angle ?? 0)).toBe("0°");
+    const sevenDegrees = ((90 - 7) * Math.PI) / 180;
+    const tilted = snappedEdge(
+      { x: 0, y: 0 },
+      { x: Math.cos(sevenDegrees) * 4.2, y: Math.sin(sevenDegrees) * 4.2 },
+    );
+    expect(tilted?.length).toBe(4);
+    expect(formatBearing(tilted?.angle ?? 0)).toBe("5°");
+    expect(snapAngle(Math.PI / 36 + 0.04)).toBeCloseTo(Math.PI / 36, 5);
+  });
+
+  it("builds a rectangle out from an angled side", () => {
+    const rect = angledRectangle({ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 1, y: 2.2 });
+    expect(rect?.width).toBe(2);
+    expect(rect?.depth).toBe(4);
+    expect(rect?.points[2]).toEqual({ x: 4, y: 2 });
+    expect(formatBearing(rect?.angle ?? 0)).toBe("90°");
+  });
+
+  it("aims a 2 by 4 bed along a direction", () => {
+    const north = rotatedRectangle({ x: 1, y: 2 }, 2, 4, Math.PI / 2);
+    expect(north[0]).toEqual({ x: 1, y: 2 });
+    expect(north[1]).toEqual({ x: 3, y: 2 });
+    expect(north[2]?.y).toBeCloseTo(6, 5);
+    expect(rectangleSize(north)).toEqual({ width: 2, depth: 4 });
+    expect(formatBearing(Math.PI / 2)).toBe("0°");
+  });
+
+  it("smooths a freehand square and rejects a straight scribble", () => {
+    const square = [
+      { x: 0, y: 0 },
+      { x: 1, y: 0.05 },
+      { x: 2, y: 0 },
+      { x: 3, y: 0.02 },
+      { x: 3, y: 1 },
+      { x: 2.9, y: 2 },
+      { x: 1, y: 2.05 },
+      { x: 0, y: 2 },
+      { x: 0.05, y: 1 },
+      { x: 0.1, y: 0.1 },
+    ];
+    const shape = simplifyStroke(square);
+    expect(shape.length).toBeGreaterThanOrEqual(4);
+    expect(shape.length).toBeLessThan(square.length);
+    expect(finishedStroke(square)?.length).toBeGreaterThanOrEqual(4);
+    const line = [
+      { x: 0, y: 0 },
+      { x: 1, y: 0.02 },
+      { x: 2, y: 0 },
+      { x: 3, y: 0.01 },
+    ];
+    expect(finishedStroke(line)).toBeNull();
+  });
+
+  it("rotates and scales a shape around its centre", () => {
+    expect(rotatePoints([{ x: 2, y: 1 }], { x: 1, y: 1 }, Math.PI / 2)).toEqual([{ x: 1, y: 2 }]);
+    expect(scalePoints([{ x: 3, y: 1 }], { x: 1, y: 1 }, 2)).toEqual([{ x: 5, y: 1 }]);
+    expect(formatTurn(Math.PI / 12)).toBe("+15°");
+    expect(formatTurn(-Math.PI / 18)).toBe("-10°");
+    expect(snapScale(1)).toBe(1);
+    expect(snapScale(1.04)).toBe(1.05);
+    expect(snapScale(0.1)).toBe(0.25);
+    expect(snapScale(9)).toBe(4);
+  });
+
+  it("places turn and size handles outside the shape", () => {
+    const square = [
+      { x: 0, y: 0 },
+      { x: 2, y: 0 },
+      { x: 2, y: 2 },
+      { x: 0, y: 2 },
+    ];
+    const handles = adjustHandles(square);
+    expect(handles?.turn.y).toBeGreaterThan(2);
+    expect(handles?.turn.x).toBeCloseTo(1, 3);
+    expect(distance(handles?.resize ?? { x: 1, y: 1 }, { x: 1, y: 1 })).toBeGreaterThan(Math.SQRT2);
+  });
+
+  it("moves a shape on the half-metre grid", () => {
+    expect(snapOffset({ x: 0, y: 0 }, { x: 0.6, y: -0.8 })).toEqual({ x: 0.5, y: -1 });
+    expect(translatePoints([{ x: 1, y: 2 }], { x: 0.5, y: -1 })).toEqual([{ x: 1.5, y: 1 }]);
+    expect(formatOffset({ x: 0, y: 0 })).toBe("0 m");
+    expect(formatOffset({ x: 0.5, y: -1 })).toBe("1 m south · 0.5 m east");
+  });
+
+  it("fills a bed at the plant's spread and leaves room for plants already there", () => {
+    expect(plantingSpacing([0.1, 0.15])).toBe(0.15);
+    expect(plantingSpacing([0.4, 0.5])).toBe(0.45);
+    expect(formatSpacing(0.15)).toBe("15 cm");
+    expect(formatSpacing(3.5)).toBe("3.5 m");
+    const square = [
+      { x: 0, y: 0 },
+      { x: 2, y: 0 },
+      { x: 2, y: 2 },
+      { x: 0, y: 2 },
+    ];
+    expect(fillPoints(square, 1)).toEqual([{ x: 1, y: 1 }]);
+    expect(fillPoints(square, 1, [{ x: 1, y: 1, spacing: 1 }])).toEqual([]);
+    const packed = fillPoints(square, 0.5);
+    expect(packed.length).toBeGreaterThan(4);
+    for (const point of packed) expect(pointInPolygon(point, square)).toBe(true);
+    for (let index = 0; index < packed.length; index += 1) {
+      for (let other = index + 1; other < packed.length; other += 1) {
+        const left = packed[index];
+        const right = packed[other];
+        if (left && right) expect(distance(left, right)).toBeGreaterThanOrEqual(0.49);
+      }
+    }
   });
 });

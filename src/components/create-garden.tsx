@@ -270,6 +270,7 @@ function ConfirmSite({
         buildingsLoaded: false,
         buildingError: null,
         showUnsuitable: false,
+        showBedNames: false,
         boundary: site.boundary,
         attribution: site.attribution,
         blocks: [],
