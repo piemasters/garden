@@ -23,6 +23,7 @@ import type {
   Point,
   ShadeBlock,
 } from "../../domain/types";
+import { ShadeBody } from "./shade-shape";
 
 export interface SceneProps {
   beds: Bed[];
@@ -580,63 +581,63 @@ function BlockMesh({
   onMove?: SceneProps["onMoveBed"];
 }) {
   const { camera, gl } = useThree();
+  const width = Math.max(block.width, 0.05);
+  const depth = Math.max(block.depth, 0.05);
+  const height = Math.max(block.height, 0.05);
   return (
-    <mesh
-      position={[block.x, Math.max(block.height, 0.05) / 2, -block.y]}
+    <group
+      position={[block.x, 0, -block.y]}
       rotation={[0, block.rotation ?? 0, 0]}
-      raycast={interactive ? undefined : () => null}
-      onPointerDown={(event) => {
-        event.stopPropagation();
-        onSelect(block.id);
-        const point = fromWorld(event.point);
-        if (!onMove) return;
-        onMove(point, "down");
-        const read = (native: PointerEvent) => {
-          const rect = gl.domElement.getBoundingClientRect();
-          const x = ((native.clientX - rect.left) / rect.width) * 2 - 1;
-          const y = -((native.clientY - rect.top) / rect.height) * 2 + 1;
-          const raycaster = new THREE.Raycaster();
-          raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
-          const hit = new THREE.Vector3();
-          if (
-            !raycaster.ray.intersectPlane(
-              new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
-              hit,
-            )
-          ) {
-            return null;
-          }
-          return { x: hit.x, y: -hit.z };
-        };
-        const move = (native: PointerEvent) => {
-          const next = read(native);
-          if (next) onMove(next, "move");
-        };
-        const up = (native: PointerEvent) => {
-          window.removeEventListener("pointermove", move);
-          window.removeEventListener("pointerup", up);
-          const next = read(native);
-          if (next) onMove(next, "up");
-        };
-        window.addEventListener("pointermove", move);
-        window.addEventListener("pointerup", up);
-      }}
     >
-      <boxGeometry
-        args={[
-          Math.max(block.width, 0.05),
-          Math.max(block.height, 0.05),
-          Math.max(block.depth, 0.05),
-        ]}
+      <mesh
+        position={[0, height / 2, 0]}
+        visible={false}
+        raycast={interactive ? undefined : () => null}
+        onPointerDown={(event) => {
+          event.stopPropagation();
+          onSelect(block.id);
+          const point = fromWorld(event.point);
+          if (!onMove) return;
+          onMove(point, "down");
+          const read = (native: PointerEvent) => {
+            const rect = gl.domElement.getBoundingClientRect();
+            const x = ((native.clientX - rect.left) / rect.width) * 2 - 1;
+            const y = -((native.clientY - rect.top) / rect.height) * 2 + 1;
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+            const hit = new THREE.Vector3();
+            if (
+              !raycaster.ray.intersectPlane(
+                new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+                hit,
+              )
+            ) {
+              return null;
+            }
+            return { x: hit.x, y: -hit.z };
+          };
+          const move = (native: PointerEvent) => {
+            const next = read(native);
+            if (next) onMove(next, "move");
+          };
+          const up = (native: PointerEvent) => {
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", up);
+            const next = read(native);
+            if (next) onMove(next, "up");
+          };
+          window.addEventListener("pointermove", move);
+          window.addEventListener("pointerup", up);
+        }}
+      >
+        <boxGeometry args={[width, height, depth]} />
+        <meshBasicMaterial />
+      </mesh>
+      <ShadeBody
+        block={{ ...block, width, depth, height }}
+        selected={selected}
       />
-      <meshStandardMaterial
-        color={
-          selected ? "#5d6b73" : block.source === "osm" ? "#9aa3a0" : "#6e7c86"
-        }
-        transparent
-        opacity={0.88}
-      />
-    </mesh>
+    </group>
   );
 }
 
