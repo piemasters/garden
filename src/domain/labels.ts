@@ -1,4 +1,13 @@
-import type { Aspect, Exposure, Moisture, PhLevel, PlantKind, SoilType, SunLevel } from "./types";
+import type {
+  Aspect,
+  Exposure,
+  Moisture,
+  PhLevel,
+  PlantGroup,
+  PlantKind,
+  SoilType,
+  SunLevel,
+} from "./types";
 
 export const SOIL_LABEL: Record<SoilType, string> = {
   chalk: "Chalk",
@@ -41,6 +50,12 @@ export const KIND_LABEL: Record<PlantKind, string> = {
   plant: "Perennials and shrubs",
   bulb: "Bulbs",
   seed: "Seeds",
+};
+
+export const GROUP_LABEL: Record<PlantGroup, string> = {
+  flower: "Flowers",
+  vegetable: "Vegetables",
+  fruit: "Fruit",
 };
 
 export function joinLabels(values: string[]): string {

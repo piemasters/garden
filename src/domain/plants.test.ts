@@ -18,6 +18,13 @@ describe("plant catalog", () => {
     }
     expect(PLANTS.filter((plant) => plant.kind === "bulb")).toHaveLength(12);
     expect(PLANTS.filter((plant) => plant.kind === "seed")).toHaveLength(12);
-    expect(PLANTS.some((plant) => plant.id === "tulipa-olympic-flame")).toBe(true);
+    expect(PLANTS.filter((plant) => plant.group === "flower")).toHaveLength(29);
+    expect(PLANTS.filter((plant) => plant.group === "vegetable")).toHaveLength(
+      6,
+    );
+    expect(PLANTS.filter((plant) => plant.group === "fruit")).toHaveLength(1);
+    expect(PLANTS.some((plant) => plant.id === "tulipa-olympic-flame")).toBe(
+      true,
+    );
   });
 });

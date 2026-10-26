@@ -4,8 +4,19 @@ export const PH_LEVELS = ["acid", "neutral", "alkaline"] as const;
 export const SUN_LEVELS = ["full-sun", "partial-sun", "shade"] as const;
 export const ASPECTS = ["north", "east", "south", "west"] as const;
 export const EXPOSURES = ["sheltered", "exposed"] as const;
-export const HARDINESS = ["H1a", "H1b", "H1c", "H2", "H3", "H4", "H5", "H6", "H7"] as const;
+export const HARDINESS = [
+  "H1a",
+  "H1b",
+  "H1c",
+  "H2",
+  "H3",
+  "H4",
+  "H5",
+  "H6",
+  "H7",
+] as const;
 export const PLANT_KINDS = ["plant", "bulb", "seed"] as const;
+export const PLANT_GROUPS = ["flower", "vegetable", "fruit"] as const;
 export const HABITS = ["bulb", "clump", "shrub", "tree", "annual"] as const;
 
 export type SoilType = (typeof SOIL_TYPES)[number];
@@ -16,6 +27,7 @@ export type Aspect = (typeof ASPECTS)[number];
 export type Exposure = (typeof EXPOSURES)[number];
 export type Hardiness = (typeof HARDINESS)[number];
 export type PlantKind = (typeof PLANT_KINDS)[number];
+export type PlantGroup = (typeof PLANT_GROUPS)[number];
 export type Habit = (typeof HABITS)[number];
 export type JobShift = "spring" | "autumn" | "none";
 
@@ -39,6 +51,7 @@ export interface Plant {
   scientificName: string;
   commonName: string;
   kind: PlantKind;
+  group: PlantGroup;
   habit: Habit;
   summary: string;
   cultivation: string;
