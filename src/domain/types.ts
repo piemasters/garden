@@ -82,6 +82,10 @@ export interface ShadeBlock {
   width: number;
   depth: number;
   height: number;
+  /** Anticlockwise radians from east. Missing means the sides run with the axes. */
+  rotation?: number;
+  /** A fence or hedge: length can change, width stays put. */
+  line?: boolean;
   source: "osm" | "user";
   label?: string;
 }

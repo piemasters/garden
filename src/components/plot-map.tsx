@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
-import { fromLocalMetres, smallestOutlineAt, toLocalMetres } from "../domain/geometry";
+import {
+  fromLocalMetres,
+  smallestOutlineAt,
+  toLocalMetres,
+} from "../domain/geometry";
 import type { AddressChoice } from "../server/site";
 import { buttonClass, quietButtonClass } from "./chrome";
 
@@ -18,9 +22,12 @@ const FILLS = [
 type LeafletModule = typeof import("leaflet");
 
 async function loadLeaflet(): Promise<LeafletModule> {
-  const loaded = (await import("leaflet")) as LeafletModule & { default?: LeafletModule };
+  const loaded = (await import("leaflet")) as LeafletModule & {
+    default?: LeafletModule;
+  };
   if (typeof loaded.map === "function") return loaded;
-  if (loaded.default && typeof loaded.default.map === "function") return loaded.default;
+  if (loaded.default && typeof loaded.default.map === "function")
+    return loaded.default;
   return loaded;
 }
 
@@ -47,7 +54,9 @@ export function PlotMap({
     aerial?: Leaflet.TileLayer;
     streets?: Leaflet.TileLayer;
   }>({});
-  const renderRef = useRef<(next: AddressChoice[], fit: boolean) => void>(() => {});
+  const renderRef = useRef<(next: AddressChoice[], fit: boolean) => void>(
+    () => {},
+  );
   const choicesRef = useRef(choices);
   const onChooseRef = useRef(onChoose);
   const onSearchRef = useRef(onSearch);
@@ -72,7 +81,10 @@ export function PlotMap({
     void loadLeaflet()
       .then((L) => {
         if (disposed) return;
-        const view = L.map(element, { zoomControl: true, attributionControl: true });
+        const view = L.map(element, {
+          zoomControl: true,
+          attributionControl: false,
+        });
         map = view;
         const aerial = L.tileLayer(
           "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -82,10 +94,13 @@ export function PlotMap({
             maxZoom: 19,
           },
         );
-        const streets = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: "© OpenStreetMap contributors",
-          maxZoom: 19,
-        });
+        const streets = L.tileLayer(
+          "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+          {
+            attribution: "© OpenStreetMap contributors",
+            maxZoom: 19,
+          },
+        );
         const plots = L.layerGroup().addTo(view);
         const pin = L.layerGroup().addTo(view);
         layers.current = { map: view, aerial, streets };
@@ -114,8 +129,12 @@ export function PlotMap({
                 bubblingMouseEvents: false,
               });
               polygon.bindTooltip(choice.label, { sticky: true });
-              polygon.on("mouseover", () => polygon.setStyle({ fillOpacity: 0.55, weight: 3 }));
-              polygon.on("mouseout", () => polygon.setStyle({ fillOpacity: 0.35, weight: 2 }));
+              polygon.on("mouseover", () =>
+                polygon.setStyle({ fillOpacity: 0.55, weight: 3 }),
+              );
+              polygon.on("mouseout", () =>
+                polygon.setStyle({ fillOpacity: 0.35, weight: 2 }),
+              );
               polygon.on("click", (event) => {
                 const local = toLocalMetres(
                   event.latlng.lat,
@@ -143,7 +162,10 @@ export function PlotMap({
             positions.push([choice.latitude, choice.longitude]);
           }
           if (fit && positions.length > 0) {
-            view.fitBounds(L.latLngBounds(positions), { padding: [36, 36], maxZoom: 17 });
+            view.fitBounds(L.latLngBounds(positions), {
+              padding: [36, 36],
+              maxZoom: 17,
+            });
           } else if (fit) {
             view.setView([originLatitude, originLongitude], 17);
           }
@@ -170,11 +192,16 @@ export function PlotMap({
           }).addTo(pin);
           onSearchRef.current(event.latlng.lat, event.latlng.lng);
         });
-        view.getContainer().style.cursor = disabledRef.current ? "wait" : "crosshair";
+        view.getContainer().style.cursor = disabledRef.current
+          ? "wait"
+          : "crosshair";
         frame = requestAnimationFrame(() => view.invalidateSize());
       })
       .catch(() => {
-        if (!disposed) setMapError("The map could not be loaded. Pick a plot from the list.");
+        if (!disposed)
+          setMapError(
+            "The map could not be loaded. Pick a plot from the list.",
+          );
       });
 
     return () => {
@@ -232,9 +259,16 @@ export function PlotMap({
       {status ? <p className="text-sm text-ink/70">{status}</p> : null}
       {mapError ? <p className="text-sm text-clay">{mapError}</p> : null}
       <p className="text-xs text-ink/60">
-        Click empty ground to load the freeholds around that spot, then click a coloured plot to
-        import it. Aerial imagery © Esri. Streets © OpenStreetMap contributors.
+        Click empty ground to load the freeholds around that spot, then click a
+        coloured plot to import it.
       </p>
+      <details className="text-xs text-ink/50">
+        <summary className="cursor-pointer">Map sources</summary>
+        <p className="mt-1">
+          Imagery © Esri — Source: Esri, Maxar, Earthstar Geographics, and the
+          GIS User Community. Streets © OpenStreetMap contributors.
+        </p>
+      </details>
     </div>
   );
 }

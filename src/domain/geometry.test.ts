@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
+import type { ShadeBlock } from "./types";
 import {
   angledRectangle,
+  blockCorners,
+  blockFromCorners,
+  pointInBlock,
   distance,
   fillPoints,
   finishedStroke,
@@ -27,6 +31,8 @@ import {
   snapAngle,
   snappedEdge,
   snapPoint,
+  snapLineToOutline,
+  snapToOutline,
   spanSize,
   toLocalMetres,
 } from "./geometry";
@@ -35,7 +41,12 @@ describe("map coordinates", () => {
   it("converts a local point back to the same latitude and longitude", () => {
     const originLatitude = 51.14;
     const originLongitude = -0.47;
-    const local = toLocalMetres(51.141, -0.469, originLatitude, originLongitude);
+    const local = toLocalMetres(
+      51.141,
+      -0.469,
+      originLatitude,
+      originLongitude,
+    );
     const geographic = fromLocalMetres(local, originLatitude, originLongitude);
     expect(geographic.latitude).toBeCloseTo(51.141, 8);
     expect(geographic.longitude).toBeCloseTo(-0.469, 8);
@@ -103,7 +114,11 @@ describe("drawing sizes", () => {
   });
 
   it("builds a rectangle out from an angled side", () => {
-    const rect = angledRectangle({ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 1, y: 2.2 });
+    const rect = angledRectangle(
+      { x: 0, y: 0 },
+      { x: 4, y: 0 },
+      { x: 1, y: 2.2 },
+    );
     expect(rect?.width).toBe(2);
     expect(rect?.depth).toBe(4);
     expect(rect?.points[2]).toEqual({ x: 4, y: 2 });
@@ -146,8 +161,12 @@ describe("drawing sizes", () => {
   });
 
   it("rotates and scales a shape around its centre", () => {
-    expect(rotatePoints([{ x: 2, y: 1 }], { x: 1, y: 1 }, Math.PI / 2)).toEqual([{ x: 1, y: 2 }]);
-    expect(scalePoints([{ x: 3, y: 1 }], { x: 1, y: 1 }, 2)).toEqual([{ x: 5, y: 1 }]);
+    expect(rotatePoints([{ x: 2, y: 1 }], { x: 1, y: 1 }, Math.PI / 2)).toEqual(
+      [{ x: 1, y: 2 }],
+    );
+    expect(scalePoints([{ x: 3, y: 1 }], { x: 1, y: 1 }, 2)).toEqual([
+      { x: 5, y: 1 },
+    ]);
     expect(formatTurn(Math.PI / 12)).toBe("+15°");
     expect(formatTurn(-Math.PI / 18)).toBe("-10°");
     expect(snapScale(1)).toBe(1);
@@ -166,12 +185,19 @@ describe("drawing sizes", () => {
     const handles = adjustHandles(square);
     expect(handles?.turn.y).toBeGreaterThan(2);
     expect(handles?.turn.x).toBeCloseTo(1, 3);
-    expect(distance(handles?.resize ?? { x: 1, y: 1 }, { x: 1, y: 1 })).toBeGreaterThan(Math.SQRT2);
+    expect(
+      distance(handles?.resize ?? { x: 1, y: 1 }, { x: 1, y: 1 }),
+    ).toBeGreaterThan(Math.SQRT2);
   });
 
   it("moves a shape on the half-metre grid", () => {
-    expect(snapOffset({ x: 0, y: 0 }, { x: 0.6, y: -0.8 })).toEqual({ x: 0.5, y: -1 });
-    expect(translatePoints([{ x: 1, y: 2 }], { x: 0.5, y: -1 })).toEqual([{ x: 1.5, y: 1 }]);
+    expect(snapOffset({ x: 0, y: 0 }, { x: 0.6, y: -0.8 })).toEqual({
+      x: 0.5,
+      y: -1,
+    });
+    expect(translatePoints([{ x: 1, y: 2 }], { x: 0.5, y: -1 })).toEqual([
+      { x: 1.5, y: 1 },
+    ]);
     expect(formatOffset({ x: 0, y: 0 })).toBe("0 m");
     expect(formatOffset({ x: 0.5, y: -1 })).toBe("1 m south · 0.5 m east");
   });
@@ -191,13 +217,92 @@ describe("drawing sizes", () => {
     expect(fillPoints(square, 1, [{ x: 1, y: 1, spacing: 1 }])).toEqual([]);
     const packed = fillPoints(square, 0.5);
     expect(packed.length).toBeGreaterThan(4);
-    for (const point of packed) expect(pointInPolygon(point, square)).toBe(true);
+    for (const point of packed)
+      expect(pointInPolygon(point, square)).toBe(true);
     for (let index = 0; index < packed.length; index += 1) {
       for (let other = index + 1; other < packed.length; other += 1) {
         const left = packed[index];
         const right = packed[other];
-        if (left && right) expect(distance(left, right)).toBeGreaterThanOrEqual(0.49);
+        if (left && right)
+          expect(distance(left, right)).toBeGreaterThanOrEqual(0.49);
       }
     }
+  });
+
+  it("keeps a shade block's size when its corners are turned", () => {
+    const block: ShadeBlock = {
+      id: "fence",
+      x: 2,
+      y: 1,
+      width: 4,
+      depth: 0.2,
+      height: 1.8,
+      source: "user",
+    };
+    const turned = rotatePoints(
+      blockCorners(block),
+      { x: block.x, y: block.y },
+      Math.PI / 2,
+    );
+    const next = blockFromCorners(block, turned);
+    expect(next.width).toBeCloseTo(4);
+    expect(next.depth).toBeCloseTo(0.2);
+    expect(next.rotation).toBeCloseTo(Math.PI / 2);
+    expect(pointInBlock({ x: 2, y: 1 }, next)).toBe(true);
+    expect(pointInBlock({ x: 6, y: 1 }, next)).toBe(false);
+  });
+
+  it("snaps a fence onto the property outline and leaves a distant point on the grid", () => {
+    const outline = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 8 },
+      { x: 0, y: 8 },
+    ];
+    expect(snapToOutline({ x: 4.2, y: 0.4 }, outline, 1)).toEqual({
+      x: 4.2,
+      y: 0,
+    });
+    expect(snapToOutline({ x: 4.2, y: 3 }, outline, 1)).toEqual({ x: 4, y: 3 });
+    expect(snapToOutline({ x: 0.2, y: 0.15 }, null, 1)).toEqual({ x: 0, y: 0 });
+    const fence: ShadeBlock = {
+      id: "fence",
+      x: 5,
+      y: 0.6,
+      width: 4,
+      depth: 0.3,
+      height: 1.8,
+      rotation: 0.05,
+      line: true,
+      source: "user",
+    };
+    const snapped = snapLineToOutline(fence, outline, 1);
+    expect(snapped.x).toBeCloseTo(5);
+    expect(snapped.y).toBeCloseTo(0);
+    expect(snapped.rotation).toBeCloseTo(0);
+    expect(snapped.depth).toBe(0.3);
+    const across: ShadeBlock = { ...fence, rotation: Math.PI / 2 };
+    expect(snapLineToOutline(across, outline, 1)).toEqual(across);
+    const house: ShadeBlock = { ...fence, line: false, y: 0.2 };
+    expect(snapLineToOutline(house, outline, 1)).toEqual(house);
+  });
+
+  it("lengthens a fence without making it wider", () => {
+    const block: ShadeBlock = {
+      id: "fence",
+      x: 0,
+      y: 0,
+      width: 4,
+      depth: 0.3,
+      height: 1.8,
+      rotation: 0.4,
+      line: true,
+      source: "user",
+    };
+    const scaled = scalePoints(blockCorners(block), { x: 0, y: 0 }, 2.5);
+    const next = blockFromCorners(block, scaled);
+    expect(next.width).toBeCloseTo(10);
+    expect(next.depth).toBeCloseTo(0.3);
+    expect(next.rotation).toBeCloseTo(0.4);
   });
 });

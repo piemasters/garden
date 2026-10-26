@@ -2,10 +2,13 @@ import type { Point, ShadeBlock } from "./types";
 
 export function centroid(points: Point[]): Point {
   if (points.length === 0) return { x: 0, y: 0 };
-  const total = points.reduce((sum, point) => ({ x: sum.x + point.x, y: sum.y + point.y }), {
-    x: 0,
-    y: 0,
-  });
+  const total = points.reduce(
+    (sum, point) => ({ x: sum.x + point.x, y: sum.y + point.y }),
+    {
+      x: 0,
+      y: 0,
+    },
+  );
   return { x: total.x / points.length, y: total.y / points.length };
 }
 
@@ -16,13 +19,20 @@ export function distance(a: Point, b: Point): number {
 export function pointInPolygon(point: Point, polygon: Point[]): boolean {
   if (polygon.length < 3) return false;
   let inside = false;
-  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+  for (
+    let index = 0, previous = polygon.length - 1;
+    index < polygon.length;
+    previous = index++
+  ) {
     const current = polygon[index];
     const prior = polygon[previous];
     if (!current || !prior) continue;
     const crosses =
       current.y > point.y !== prior.y > point.y &&
-      point.x < ((prior.x - current.x) * (point.y - current.y)) / (prior.y - current.y) + current.x;
+      point.x <
+        ((prior.x - current.x) * (point.y - current.y)) /
+          (prior.y - current.y) +
+          current.x;
     if (crosses) inside = !inside;
   }
   return inside;
@@ -35,7 +45,8 @@ export function toLocalMetres(
   originLongitude: number,
 ): Point {
   const metresPerDegreeLat = 111_320;
-  const metresPerDegreeLng = 111_320 * Math.cos((originLatitude * Math.PI) / 180);
+  const metresPerDegreeLng =
+    111_320 * Math.cos((originLatitude * Math.PI) / 180);
   return {
     x: (longitude - originLongitude) * metresPerDegreeLng,
     y: (latitude - originLatitude) * metresPerDegreeLat,
@@ -48,7 +59,8 @@ export function fromLocalMetres(
   originLongitude: number,
 ): { latitude: number; longitude: number } {
   const metresPerDegreeLat = 111_320;
-  const metresPerDegreeLng = 111_320 * Math.cos((originLatitude * Math.PI) / 180);
+  const metresPerDegreeLng =
+    111_320 * Math.cos((originLatitude * Math.PI) / 180);
   return {
     latitude: originLatitude + point.y / metresPerDegreeLat,
     longitude: originLongitude + point.x / metresPerDegreeLng,
@@ -74,7 +86,8 @@ export function smallestOutlineAt<T extends { outline?: Point[] }>(
   let bestArea = Number.POSITIVE_INFINITY;
   for (const choice of choices) {
     const outline = choice.outline;
-    if (!outline || outline.length < 3 || !pointInPolygon(point, outline)) continue;
+    if (!outline || outline.length < 3 || !pointInPolygon(point, outline))
+      continue;
     const area = polygonArea(outline);
     if (area < bestArea) {
       best = choice;
@@ -115,12 +128,123 @@ export function footprintBlock(
   };
 }
 
+/** The two ends of a fence or hedge, along its length. */
+export function lineEnds(
+  block: Pick<ShadeBlock, "x" | "y" | "width" | "rotation">,
+): [Point, Point] {
+  const angle = block.rotation ?? 0;
+  const half = block.width / 2;
+  const alongX = Math.cos(angle) * half;
+  const alongY = Math.sin(angle) * half;
+  return [
+    { x: block.x - alongX, y: block.y - alongY },
+    { x: block.x + alongX, y: block.y + alongY },
+  ];
+}
+
+/** Corners of a shade block, anticlockwise from its south-west corner when unrotated. */
+export function blockCorners(
+  block: Pick<ShadeBlock, "x" | "y" | "width" | "depth" | "rotation">,
+): Point[] {
+  const halfWidth = block.width / 2;
+  const halfDepth = block.depth / 2;
+  const angle = block.rotation ?? 0;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return [
+    { x: -halfWidth, y: -halfDepth },
+    { x: halfWidth, y: -halfDepth },
+    { x: halfWidth, y: halfDepth },
+    { x: -halfWidth, y: halfDepth },
+  ].map((point) => ({
+    x: block.x + point.x * cos - point.y * sin,
+    y: block.y + point.x * sin + point.y * cos,
+  }));
+}
+
+/** Rebuild a block from corners produced by move, turn, or scale. */
+export function blockFromCorners(
+  base: ShadeBlock,
+  corners: Point[],
+): ShadeBlock {
+  const [first, second, third] = corners;
+  if (!first || !second || !third || corners.length < 4) return base;
+  const center = {
+    x: corners.reduce((sum, point) => sum + point.x, 0) / corners.length,
+    y: corners.reduce((sum, point) => sum + point.y, 0) / corners.length,
+  };
+  return {
+    ...base,
+    x: center.x,
+    y: center.y,
+    width: Math.max(distance(first, second), base.line ? 0.5 : 0.15),
+    depth: base.line ? base.depth : Math.max(distance(second, third), 0.15),
+    rotation: Math.atan2(second.y - first.y, second.x - first.x),
+  };
+}
+
+/** True when a plan point hits the block, with a little extra room on a thin fence. */
+export function pointInBlock(point: Point, block: ShadeBlock): boolean {
+  return pointInPolygon(
+    point,
+    blockCorners({
+      ...block,
+      width: Math.max(block.width, 0.8),
+      depth: Math.max(block.depth, 0.8),
+    }),
+  );
+}
+
 export const DRAW_STEP_M = 0.5;
 
 export function snapPoint(point: Point, step = DRAW_STEP_M): Point {
   return {
     x: Math.round(point.x / step) * step,
     y: Math.round(point.y / step) * step,
+  };
+}
+
+/** How far a fence may sit from the outline and still be treated as parallel to it. */
+const OUTLINE_ALIGN = Math.PI / 12;
+
+/**
+ * Pull a point onto the property outline when it is close, otherwise onto the
+ * half-metre grid. The outline wins so a boundary that is not on the grid can
+ * still be followed.
+ */
+export function snapToOutline(
+  point: Point,
+  outline: Point[] | null | undefined,
+  threshold: number,
+): Point {
+  const nearest = nearestOnOutline(point, outline);
+  if (nearest && nearest.distance <= threshold) return nearest.point;
+  return snapPoint(point);
+}
+
+/**
+ * Shift a fence or hedge onto the nearest outline edge when it is already
+ * nearly parallel and close. Other shade blocks are left alone.
+ */
+export function snapLineToOutline(
+  block: ShadeBlock,
+  outline: Point[] | null | undefined,
+  threshold: number,
+): ShadeBlock {
+  if (!block.line) return block;
+  const rotation = block.rotation ?? 0;
+  const match = nearestParallelEdge(
+    { x: block.x, y: block.y },
+    rotation,
+    outline,
+    threshold,
+  );
+  if (!match) return block;
+  return {
+    ...block,
+    x: match.point.x,
+    y: match.point.y,
+    rotation: match.angle,
   };
 }
 
@@ -163,7 +287,11 @@ export function rectanglePoints(start: Point, end: Point): Point[] {
   ];
 }
 
-export function placedRectangle(corner: Point, width: number, depth: number): Point[] {
+export function placedRectangle(
+  corner: Point,
+  width: number,
+  depth: number,
+): Point[] {
   const origin = snapPoint(corner);
   return rectanglePoints(origin, { x: origin.x + width, y: origin.y + depth });
 }
@@ -193,7 +321,9 @@ export function formatTurn(radians: number): string {
 }
 
 /** Handles sit just outside the shape: Turn to the north, Size beyond the furthest corner. */
-export function adjustHandles(points: Point[]): { turn: Point; resize: Point } | null {
+export function adjustHandles(
+  points: Point[],
+): { turn: Point; resize: Point } | null {
   if (points.length < 3) return null;
   const center = centroid(points);
   let far = points[0];
@@ -216,7 +346,11 @@ export function adjustHandles(points: Point[]): { turn: Point; resize: Point } |
   };
 }
 
-export function rotatePoints(points: Point[], center: Point, radians: number): Point[] {
+export function rotatePoints(
+  points: Point[],
+  center: Point,
+  radians: number,
+): Point[] {
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
   return points.map((point) => {
@@ -236,7 +370,11 @@ export function snapScale(factor: number): number {
   return Math.min(4, Math.max(0.25, snapped));
 }
 
-export function scalePoints(points: Point[], center: Point, factor: number): Point[] {
+export function scalePoints(
+  points: Point[],
+  center: Point,
+  factor: number,
+): Point[] {
   return points.map((point) => ({
     x: roundMetre(center.x + (point.x - center.x) * factor),
     y: roundMetre(center.y + (point.y - center.y) * factor),
@@ -261,8 +399,14 @@ export function translatePoints(points: Point[], by: Point): Point[] {
 /** North and east are positive. A zero move reads as "0 m". */
 export function formatOffset(by: Point): string {
   const parts: string[] = [];
-  if (by.y !== 0) parts.push(`${formatMetres(Math.abs(by.y))} m ${by.y > 0 ? "north" : "south"}`);
-  if (by.x !== 0) parts.push(`${formatMetres(Math.abs(by.x))} m ${by.x > 0 ? "east" : "west"}`);
+  if (by.y !== 0)
+    parts.push(
+      `${formatMetres(Math.abs(by.y))} m ${by.y > 0 ? "north" : "south"}`,
+    );
+  if (by.x !== 0)
+    parts.push(
+      `${formatMetres(Math.abs(by.x))} m ${by.x > 0 ? "east" : "west"}`,
+    );
   return parts.length > 0 ? parts.join(" · ") : "0 m";
 }
 
@@ -341,16 +485,24 @@ export function rotatedRectangle(
   const wy = -dx;
   return [
     origin,
-    { x: roundMetre(origin.x + wx * width), y: roundMetre(origin.y + wy * width) },
+    {
+      x: roundMetre(origin.x + wx * width),
+      y: roundMetre(origin.y + wy * width),
+    },
     {
       x: roundMetre(origin.x + wx * width + dx * depth),
       y: roundMetre(origin.y + wy * width + dy * depth),
     },
-    { x: roundMetre(origin.x + dx * depth), y: roundMetre(origin.y + dy * depth) },
+    {
+      x: roundMetre(origin.x + dx * depth),
+      y: roundMetre(origin.y + dy * depth),
+    },
   ];
 }
 
-export function rectangleSize(points: Point[]): { width: number; depth: number } | null {
+export function rectangleSize(
+  points: Point[],
+): { width: number; depth: number } | null {
   if (points.length !== 4) return null;
   const [a, b, c, d] = points;
   if (!a || !b || !c || !d) return null;
@@ -412,7 +564,10 @@ export function simplifyStroke(points: Point[], epsilon = 0.18): Point[] {
   const first = cleaned[0];
   const last = cleaned[cleaned.length - 1];
   if (!first || !last) return cleaned;
-  const open = distance(first, last) <= Math.max(epsilon, 0.4) ? cleaned.slice(0, -1) : cleaned;
+  const open =
+    distance(first, last) <= Math.max(epsilon, 0.4)
+      ? cleaned.slice(0, -1)
+      : cleaned;
   if (open.length < 3) return open;
   const simplified = simplifyOpen(open, epsilon);
   return simplified.length > 64 ? simplifyOpen(open, epsilon * 2) : simplified;
@@ -432,7 +587,11 @@ export function scaleLength(worldWidth: number): number {
   const steps = [1, 2, 5, 10, 20, 50];
   let best = 1;
   for (const step of steps) {
-    if (step <= worldWidth * 0.5 && Math.abs(step - target) < Math.abs(best - target)) best = step;
+    if (
+      step <= worldWidth * 0.5 &&
+      Math.abs(step - target) < Math.abs(best - target)
+    )
+      best = step;
   }
   return best;
 }
@@ -462,18 +621,24 @@ export function fillPoints(
 ): Point[] {
   if (polygon.length < 3 || !(spacing > 0)) return [];
   const width =
-    Math.max(...polygon.map((point) => point.x)) - Math.min(...polygon.map((point) => point.x));
+    Math.max(...polygon.map((point) => point.x)) -
+    Math.min(...polygon.map((point) => point.x));
   const depth =
-    Math.max(...polygon.map((point) => point.y)) - Math.min(...polygon.map((point) => point.y));
+    Math.max(...polygon.map((point) => point.y)) -
+    Math.min(...polygon.map((point) => point.y));
   const estimate = (width / spacing) * (depth / (spacing * 0.866));
   const gap =
     estimate > FILL_LIMIT
-      ? Math.max(spacing, Math.round(spacing * Math.sqrt(estimate / FILL_LIMIT) * 20) / 20)
+      ? Math.max(
+          spacing,
+          Math.round(spacing * Math.sqrt(estimate / FILL_LIMIT) * 20) / 20,
+        )
       : spacing;
   const placed = layoutFill(polygon, gap, occupied);
   if (placed.length > 0) return placed;
   const centre = centroid(polygon);
-  if (!pointInPolygon(centre, polygon) || !clearOf(centre, gap, occupied)) return [];
+  if (!pointInPolygon(centre, polygon) || !clearOf(centre, gap, occupied))
+    return [];
   return [{ x: roundMetre(centre.x), y: roundMetre(centre.y) }];
 }
 
@@ -507,7 +672,11 @@ function layoutFill(
       const x = centreX + col * spacing + shift;
       if (x < minX || x > maxX) continue;
       const point = { x, y };
-      if (!pointInPolygon(point, polygon) || distanceToPolygon(point, polygon) < inset) continue;
+      if (
+        !pointInPolygon(point, polygon) ||
+        distanceToPolygon(point, polygon) < inset
+      )
+        continue;
       if (!clearOf(point, spacing, occupied)) continue;
       placed.push({ x: roundMetre(x), y: roundMetre(y) });
       if (placed.length >= FILL_LIMIT) return placed;
@@ -521,7 +690,9 @@ function clearOf(
   spacing: number,
   occupied: { x: number; y: number; spacing: number }[],
 ): boolean {
-  return occupied.every((item) => distance(point, item) >= (spacing + item.spacing) / 2 - 0.001);
+  return occupied.every(
+    (item) => distance(point, item) >= (spacing + item.spacing) / 2 - 0.001,
+  );
 }
 
 function distanceToPolygon(point: Point, polygon: Point[]): number {
@@ -536,18 +707,94 @@ function distanceToPolygon(point: Point, polygon: Point[]): number {
 }
 
 function distanceToSegment(point: Point, start: Point, end: Point): number {
+  return distance(point, projectOnSegment(point, start, end).point);
+}
+
+function projectOnSegment(
+  point: Point,
+  start: Point,
+  end: Point,
+): { point: Point; t: number } {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const lengthSq = dx * dx + dy * dy;
-  if (lengthSq === 0) return distance(point, start);
+  if (lengthSq === 0) return { point: start, t: 0 };
   const t = Math.max(
     0,
-    Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSq),
+    Math.min(
+      1,
+      ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSq,
+    ),
   );
-  return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
+  return { point: { x: start.x + t * dx, y: start.y + t * dy }, t };
 }
 
-export function buildingHeight(tags: Record<string, string | undefined>): number {
+function nearestOnOutline(
+  point: Point,
+  outline: Point[] | null | undefined,
+): { point: Point; distance: number } | null {
+  if (!outline || outline.length < 3) return null;
+  let best: { point: Point; distance: number } | null = null;
+  for (let index = 0; index < outline.length; index += 1) {
+    const start = outline[index];
+    const end = outline[(index + 1) % outline.length];
+    if (!start || !end || (start.x === end.x && start.y === end.y)) continue;
+    const projected = projectOnSegment(point, start, end);
+    const span = distance(point, projected.point);
+    if (best && span >= best.distance) continue;
+    best = { point: projected.point, distance: span };
+  }
+  return best;
+}
+
+function nearestParallelEdge(
+  point: Point,
+  rotation: number,
+  outline: Point[] | null | undefined,
+  threshold: number,
+): { point: Point; angle: number } | null {
+  if (!outline || outline.length < 3) return null;
+  let best: { point: Point; angle: number; distance: number } | null = null;
+  for (let index = 0; index < outline.length; index += 1) {
+    const start = outline[index];
+    const end = outline[(index + 1) % outline.length];
+    if (!start || !end || (start.x === end.x && start.y === end.y)) continue;
+    const projected = projectOnSegment(point, start, end);
+    if (projected.t <= 0 || projected.t >= 1) continue;
+    const angle = Math.atan2(end.y - start.y, end.x - start.x);
+    if (undirectedTurn(rotation, angle) > OUTLINE_ALIGN) continue;
+    const span = distance(point, projected.point);
+    if (span > threshold || (best && span >= best.distance)) continue;
+    best = {
+      point: projected.point,
+      angle: nearerAngle(rotation, angle),
+      distance: span,
+    };
+  }
+  return best;
+}
+
+/** Smaller angle between two undirected lines, in radians. */
+function undirectedTurn(a: number, b: number): number {
+  const turn = Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  return Math.min(turn, Math.PI - turn);
+}
+
+function nearerAngle(current: number, segment: number): number {
+  const flipped = segment + Math.PI;
+  const toSegment = Math.abs(
+    Math.atan2(Math.sin(current - segment), Math.cos(current - segment)),
+  );
+  const toFlipped = Math.abs(
+    Math.atan2(Math.sin(current - flipped), Math.cos(current - flipped)),
+  );
+  const chosen = toFlipped < toSegment ? flipped : segment;
+  return Math.atan2(Math.sin(chosen), Math.cos(chosen));
+}
+
+export function buildingHeight(
+  tags: Record<string, string | undefined>,
+): number {
   const heightMatch = tags.height?.match(/[\d.]+/);
   if (heightMatch) {
     const metres = Number(heightMatch[0]);

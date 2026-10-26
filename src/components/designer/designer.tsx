@@ -3,6 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   angledRectangle,
+  blockCorners,
+  blockFromCorners,
   centroid,
   distance,
   fillPoints,
@@ -11,8 +13,10 @@ import {
   formatBearing,
   formatMetres,
   formatOffset,
+  lineEnds,
   formatSize,
   formatTurn,
+  pointInBlock,
   pointInPolygon,
   plantingSpacing,
   polygonArea,
@@ -27,6 +31,8 @@ import {
   snappedEdge,
   snapPoint,
   snapScale,
+  snapToOutline,
+  snapLineToOutline,
   spanSize,
 } from "../../domain/geometry";
 import {
@@ -74,6 +80,39 @@ type Tool =
   | "scale"
   | "move";
 
+const DRAW_TOOLS: { tool: Tool; label: string; help: string }[] = [
+  {
+    tool: "select",
+    label: "Select",
+    help: "Click a bed to select it, or drag it to move.",
+  },
+  {
+    tool: "rect",
+    label: "Rectangle",
+    help: "Drag from one corner to the other. Corners snap to half metres.",
+  },
+  {
+    tool: "angled",
+    label: "Angled",
+    help: "Click both ends of one side, then click again to set the width.",
+  },
+  {
+    tool: "freeform",
+    label: "Freeform",
+    help: "Drag around the bed. Release to close and smooth the outline.",
+  },
+  {
+    tool: "bed",
+    label: "Outline",
+    help: "Click each corner, then the first corner again to close the bed.",
+  },
+  {
+    tool: "block",
+    label: "Shade",
+    help: "Drag a wall, fence, or building. It casts shade on the beds.",
+  },
+];
+
 type ShapeMenu = {
   x: number;
   y: number;
@@ -87,10 +126,12 @@ type AdjustPreview = {
   placements: { id: string; x: number; y: number }[];
   label: string;
   changed: boolean;
+  block: ShadeBlock | null;
 };
 
 type AdjustGesture = {
   kind: "rotate" | "scale" | "move";
+  target: "bed" | "block";
   bedId: string;
   center: Point;
   origin: Point;
@@ -98,6 +139,7 @@ type AdjustGesture = {
   startDistance: number;
   basePoints: Point[];
   basePlacements: { id: string; x: number; y: number }[];
+  baseBlock: ShadeBlock | null;
   preview: AdjustPreview | null;
 };
 
@@ -105,6 +147,15 @@ const BED_PRESETS = [
   { width: 2, depth: 2, label: "2 × 2 m" },
   { width: 2, depth: 4, label: "2 × 4 m" },
   { width: 4, depth: 2, label: "4 × 2 m" },
+] as const;
+
+const SHADE_PRESETS = [
+  { label: "House", width: 8, depth: 6, height: 6 },
+  { label: "Garage", width: 6, depth: 3, height: 2.5 },
+  { label: "Shed", width: 3, depth: 2, height: 2.2 },
+  { label: "Tree", width: 5, depth: 5, height: 7 },
+  { label: "Hedge", width: 4, depth: 0.8, height: 2, line: true },
+  { label: "Fence", width: 4, depth: 0.3, height: 1.8, line: true },
 ] as const;
 
 export function GardenDesigner({ gardenId }: { gardenId: string }) {
@@ -135,6 +186,9 @@ function DesignerBody({
   const [preset, setPreset] = useState<{ width: number; depth: number } | null>(
     null,
   );
+  const [shadePreset, setShadePreset] = useState<
+    (typeof SHADE_PRESETS)[number] | null
+  >(null);
   const [draft, setDraft] = useState<Point[]>([]);
   const [cursor, setCursor] = useState<Point | null>(null);
   const [rectStart, setRectStart] = useState<Point | null>(null);
@@ -336,12 +390,21 @@ function DesignerBody({
   function chooseTool(next: Tool) {
     setTool(next);
     setPreset(null);
+    setShadePreset(null);
     resetGesture();
   }
 
   function armPreset(width: number, depth: number) {
     setPreset({ width, depth });
+    setShadePreset(null);
     setTool("place");
+    resetGesture();
+  }
+
+  function armShade(next: (typeof SHADE_PRESETS)[number]) {
+    setShadePreset(next);
+    setPreset(null);
+    setTool("block");
     resetGesture();
   }
 
@@ -418,6 +481,10 @@ function DesignerBody({
     }
     const point = tool === "select" ? raw : snapPoint(raw);
     if (phase === "move") {
+      if (tool === "block" && shadePreset) {
+        placeShade(raw, "move");
+        return;
+      }
       setCursor(point);
       if (tool === "block" && blockStart)
         setBlockDraft(blockBetween(blockId.current, blockStart, point));
@@ -450,6 +517,10 @@ function DesignerBody({
       return;
     }
     if (tool === "block") {
+      if (shadePreset) {
+        placeShade(raw, phase);
+        return;
+      }
       if (phase === "down") {
         blockId.current = crypto.randomUUID();
         setBlockStart(point);
@@ -472,6 +543,12 @@ function DesignerBody({
       return;
     }
     if (phase !== "down") return;
+    const shade = blockUnder(point);
+    if (shade) {
+      setSelectedBlockId(shade.id);
+      setSelectedPlacementId(null);
+      return;
+    }
     const bed = garden.beds.find((item) => pointInPolygon(point, item.points));
     if (armedPlantId && bed) {
       const placement = {
@@ -509,6 +586,14 @@ function DesignerBody({
     );
   }
 
+  function blockUnder(point: Point) {
+    const hits = garden.blocks.filter((block) => pointInBlock(point, block));
+    return (
+      hits.find((block) => block.id === selectedBlockId) ??
+      hits.sort((a, b) => a.width * a.depth - b.width * b.depth)[0]
+    );
+  }
+
   function adjustShape(
     kind: "rotate" | "scale" | "move",
     raw: Point,
@@ -516,47 +601,111 @@ function DesignerBody({
   ) {
     if (view !== "plan") return;
     if (phase === "down") {
-      const bed =
-        bedUnder(raw) ?? garden.beds.find((item) => item.id === selectedBedId);
-      if (!bed) {
-        setDrawNote("Select a bed, then drag it.");
+      const block = blockUnder(raw);
+      const bed = bedUnder(raw);
+      const selectedBlock = garden.blocks.find(
+        (item) => item.id === selectedBlockId,
+      );
+      if (block) {
+        const center = { x: block.x, y: block.y };
+        if (kind === "scale" && distance(raw, center) < 0.4) {
+          setSelectedBlockId(block.id);
+          setDrawNote("Drag from the edge of the shade, away from the middle.");
+          return;
+        }
+        setDrawNote(null);
+        setSelectedBlockId(block.id);
+        adjustRef.current = {
+          kind,
+          target: "block",
+          bedId: block.id,
+          center,
+          origin: raw,
+          startAngle: Math.atan2(raw.y - center.y, raw.x - center.x),
+          startDistance: Math.max(distance(raw, center), 0.4),
+          basePoints: blockCorners(block),
+          basePlacements: [],
+          baseBlock: block,
+          preview: null,
+        };
         return;
       }
-      const center = centroid(bed.points);
+      if (!bed && selectedBlock) {
+        const center = { x: selectedBlock.x, y: selectedBlock.y };
+        if (kind === "scale" && distance(raw, center) < 0.4) {
+          setDrawNote("Drag from the edge of the shade, away from the middle.");
+          return;
+        }
+        setDrawNote(null);
+        adjustRef.current = {
+          kind,
+          target: "block",
+          bedId: selectedBlock.id,
+          center,
+          origin: raw,
+          startAngle: Math.atan2(raw.y - center.y, raw.x - center.x),
+          startDistance: Math.max(distance(raw, center), 0.4),
+          basePoints: blockCorners(selectedBlock),
+          basePlacements: [],
+          baseBlock: selectedBlock,
+          preview: null,
+        };
+        return;
+      }
+      const chosenBed =
+        bed ?? garden.beds.find((item) => item.id === selectedBedId);
+      if (!chosenBed) {
+        setDrawNote("Select a bed or shade block, then drag it.");
+        return;
+      }
+      const center = centroid(chosenBed.points);
       if (kind === "scale" && distance(raw, center) < 0.4) {
-        setSelectedBedId(bed.id);
+        setSelectedBedId(chosenBed.id);
+        setSelectedBlockId(null);
         setDrawNote("Drag from the edge of the bed, away from the middle.");
         return;
       }
       setDrawNote(null);
-      setSelectedBedId(bed.id);
+      setSelectedBedId(chosenBed.id);
+      setSelectedBlockId(null);
       adjustRef.current = {
         kind,
-        bedId: bed.id,
+        target: "bed",
+        bedId: chosenBed.id,
         center,
         origin: raw,
         startAngle: Math.atan2(raw.y - center.y, raw.x - center.x),
         startDistance: Math.max(distance(raw, center), 0.4),
-        basePoints: bed.points,
+        basePoints: chosenBed.points,
         basePlacements: garden.placements
-          .filter((item) => item.bedId === bed.id)
+          .filter((item) => item.bedId === chosenBed.id)
           .map((item) => ({ id: item.id, x: item.x, y: item.y })),
+        baseBlock: null,
         preview: null,
       };
       return;
     }
     const gesture = adjustRef.current;
     if (!gesture) return;
+    const preview = attachBlock(gesture, previewAdjust(gesture, raw));
     if (phase === "move") {
-      const preview = previewAdjust(gesture, raw);
       gesture.preview = preview;
       setAdjust(preview);
       return;
     }
-    const preview = previewAdjust(gesture, raw);
     adjustRef.current = null;
     setAdjust(null);
     if (!preview.changed) return;
+    if (gesture.target === "block" && preview.block) {
+      const nextBlock = preview.block;
+      update((current) => ({
+        ...current,
+        blocks: current.blocks.map((block) =>
+          block.id === nextBlock.id ? nextBlock : block,
+        ),
+      }));
+      return;
+    }
     update((current) => ({
       ...current,
       beds: current.beds.map((bed) =>
@@ -569,6 +718,33 @@ function DesignerBody({
         return moved ? { ...item, x: moved.x, y: moved.y } : item;
       }),
     }));
+  }
+
+  function outlineSnapMetres(): number {
+    if (!scale || scale.pixels <= 0) return 1.25;
+    return Math.min(4, Math.max(0.35, (scale.metres / scale.pixels) * 16));
+  }
+
+  function snapAdjustedLine(block: ShadeBlock): ShadeBlock {
+    return snapLineToOutline(block, garden.boundary, outlineSnapMetres());
+  }
+
+  function attachBlock(
+    gesture: AdjustGesture,
+    preview: AdjustPreview,
+  ): AdjustPreview {
+    if (gesture.target !== "block" || !gesture.baseBlock) return preview;
+    const block = snapAdjustedLine(
+      blockFromCorners(gesture.baseBlock, preview.points),
+    );
+    return {
+      ...preview,
+      block,
+      label:
+        gesture.kind === "scale" && block.line
+          ? `${formatMetres(block.width)} m long`
+          : preview.label,
+    };
   }
 
   function previewAdjust(gesture: AdjustGesture, raw: Point): AdjustPreview {
@@ -588,6 +764,7 @@ function DesignerBody({
         ),
         label: formatTurn(turned),
         changed: turned !== 0,
+        block: null,
       };
     }
     if (gesture.kind === "move") {
@@ -601,6 +778,7 @@ function DesignerBody({
         ),
         label: formatOffset(by),
         changed: by.x !== 0 || by.y !== 0,
+        block: null,
       };
     }
     const factor = snapScale(
@@ -617,6 +795,7 @@ function DesignerBody({
       ),
       label: `${formatSize(sides.width, sides.depth)} · ${Math.round(factor * 100)}%`,
       changed: factor !== 1,
+      block: null,
     };
   }
 
@@ -723,6 +902,70 @@ function DesignerBody({
     setCursor(null);
   }
 
+  function placeShade(raw: Point, phase: "down" | "move" | "up") {
+    if (!shadePreset) return;
+    if (phase === "down") {
+      const origin = presetIsLine(shadePreset)
+        ? snapToOutline(raw, garden.boundary, outlineSnapMetres())
+        : snapPoint(raw);
+      blockId.current = crypto.randomUUID();
+      placeAnchorRef.current = origin;
+      setPlaceAnchor(origin);
+      if (presetIsLine(shadePreset)) {
+        const laid = linePlacement(
+          origin,
+          origin,
+          garden.boundary,
+          outlineSnapMetres(),
+        );
+        setBlockDraft(
+          madeShade(
+            shadePreset,
+            laid.center,
+            laid.rotation,
+            blockId.current,
+            laid.length,
+          ),
+        );
+      } else {
+        setBlockDraft(madeShade(shadePreset, origin, 0, blockId.current));
+      }
+      return;
+    }
+    const origin = placeAnchorRef.current;
+    if (!origin) return;
+    const dragged = distance(origin, raw);
+    const rotation =
+      dragged < 0.35
+        ? 0
+        : snapAngle(Math.atan2(raw.y - origin.y, raw.x - origin.x));
+    const laid = presetIsLine(shadePreset)
+      ? linePlacement(origin, raw, garden.boundary, outlineSnapMetres())
+      : null;
+    const center = laid?.center ?? origin;
+    const angle = laid?.rotation ?? rotation;
+    const length = laid?.length;
+    if (phase === "move") {
+      setBlockDraft(
+        madeShade(shadePreset, center, angle, blockId.current, length),
+      );
+      setCursor(raw);
+      return;
+    }
+    const block = madeShade(
+      shadePreset,
+      center,
+      angle,
+      blockId.current,
+      length,
+    );
+    update((current) => ({ ...current, blocks: [...current.blocks, block] }));
+    setSelectedBlockId(block.id);
+    setShadePreset(null);
+    setTool("select");
+    resetGesture();
+  }
+
   const drawing = drawingPreview(
     tool,
     preset,
@@ -735,8 +978,15 @@ function DesignerBody({
   );
   const drawingLabel = adjust?.label ?? drawing.measure?.text ?? null;
   const shownBeds = garden.beds.map((bed) =>
-    adjust?.bedId === bed.id ? { ...bed, points: adjust.points } : bed,
+    adjust && !adjust.block && adjust.bedId === bed.id
+      ? { ...bed, points: adjust.points }
+      : bed,
   );
+  const shownBlocks = garden.blocks.map((block) =>
+    adjust?.block && adjust.block.id === block.id ? adjust.block : block,
+  );
+  const editingBlock =
+    shownBlocks.find((block) => block.id === selectedBlockId) ?? null;
   const shownPlacements = garden.placements.map((placement) => {
     const moved = adjust?.placements.find((item) => item.id === placement.id);
     return moved ? { ...placement, x: moved.x, y: moved.y } : placement;
@@ -754,67 +1004,155 @@ function DesignerBody({
     <div className="grid min-h-[calc(100vh-4.25rem)] lg:grid-cols-[17rem_minmax(0,1fr)_20rem]">
       <aside className="space-y-4 border-b border-line p-4 lg:border-r lg:border-b-0">
         <div>
-          <h1 className="text-3xl">{garden.site.name}</h1>
-          <p className="text-sm text-ink/70">
-            {garden.site.postcode} · {garden.site.region}
-          </p>
-          <p className="mt-2 text-sm">
-            {SOIL_LABEL[garden.site.soil]} ·{" "}
-            {MOISTURE_LABEL[garden.site.moisture]} · {PH_LABEL[garden.site.ph]}{" "}
-            · {ASPECT_LABEL[garden.site.aspect]}
-          </p>
-          {garden.site.address ? (
-            <p className="mt-2 text-sm text-ink/70">{garden.site.address}</p>
-          ) : null}
-          {garden.site.soilSuggestion ? (
-            <p className="mt-2 text-xs text-ink/60">
-              {garden.site.soilSuggestion.label}
+          <details className="group">
+            <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+              <h1 className="flex items-baseline gap-2 text-3xl">
+                <span
+                  aria-hidden
+                  className="inline-block text-sm text-ink/50 transition-transform group-open:rotate-90"
+                >
+                  ▸
+                </span>
+                {garden.site.name}
+              </h1>
+              <p className="text-sm text-ink/70">
+                {garden.site.postcode} · {garden.site.region}
+              </p>
+            </summary>
+            <div className="mt-2 space-y-2">
+              <p className="text-sm">
+                {SOIL_LABEL[garden.site.soil]} ·{" "}
+                {MOISTURE_LABEL[garden.site.moisture]} ·{" "}
+                {PH_LABEL[garden.site.ph]} · {ASPECT_LABEL[garden.site.aspect]}
+              </p>
+              {garden.site.address ? (
+                <p className="text-sm text-ink/70">{garden.site.address}</p>
+              ) : null}
+              {garden.site.soilSuggestion ? (
+                <p className="text-xs text-ink/60">
+                  {garden.site.soilSuggestion.label}
+                </p>
+              ) : null}
+            </div>
+          </details>
+        </div>
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-ink/60">Draw</p>
+          <div className="flex flex-wrap gap-1">
+            {DRAW_TOOLS.map((item) => (
+              <ToolButton
+                key={item.tool}
+                compact
+                current={tool}
+                tool={item.tool}
+                title={item.help}
+                onClick={chooseTool}
+              >
+                {item.label}
+              </ToolButton>
+            ))}
+          </div>
+          {shadePreset ? (
+            <p className="text-xs leading-snug text-ink/70">
+              {presetIsLine(shadePreset)
+                ? garden.boundary && garden.boundary.length >= 3
+                  ? `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Near the property outline it snaps to that line. Scaling changes its length, not its width.`
+                  : `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Scaling changes its length, not its width.`
+                : `Click to place a ${shadePreset.label.toLowerCase()}, or drag to aim its long side.`}
+            </p>
+          ) : DRAW_TOOLS.some((item) => item.tool === tool) ? (
+            <p className="text-xs leading-snug text-ink/70">
+              {DRAW_TOOLS.find((item) => item.tool === tool)?.help}
             </p>
           ) : null}
-          {garden.boundary && garden.boundary.length >= 3 ? (
-            <div className="mt-3 space-y-2">
-              <p className="text-xs text-ink/60">
-                Property outline from HM Land Registry. It is the indicative
-                freehold extent, not the legal title.
-              </p>
-              <button
-                className={quietButtonClass}
-                type="button"
-                onClick={() =>
-                  update((current) => ({ ...current, boundary: null }))
-                }
-              >
-                Clear outline
-              </button>
-            </div>
+          {tool === "freeform" && drawNote ? (
+            <p className="text-xs text-ink/70">{drawNote}</p>
           ) : null}
-          {garden.attribution ? (
-            <p className="mt-2 text-xs text-ink/50">{garden.attribution}</p>
+          {tool === "bed" ? (
+            <button
+              className="min-h-8 rounded-full border border-line bg-card px-2.5 py-1 text-xs text-ink hover:border-leaf disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              disabled={draft.length < 3}
+              onClick={() => {
+                addBed(draft);
+                setTool("select");
+                setCursor(null);
+              }}
+            >
+              Finish bed
+            </button>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <ToolButton current={tool} tool="select" onClick={chooseTool}>
-            Select
-          </ToolButton>
-          <ToolButton current={tool} tool="rect" onClick={chooseTool}>
-            Rectangle
-          </ToolButton>
-          <ToolButton current={tool} tool="angled" onClick={chooseTool}>
-            Angled
-          </ToolButton>
-          <ToolButton current={tool} tool="freeform" onClick={chooseTool}>
-            Freeform
-          </ToolButton>
-          <ToolButton current={tool} tool="bed" onClick={chooseTool}>
-            Outline
-          </ToolButton>
-          <ToolButton current={tool} tool="block" onClick={chooseTool}>
-            Shade block
-          </ToolButton>
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-ink/60">Shade presets</p>
+          <div className="flex flex-wrap gap-1">
+            {SHADE_PRESETS.map((item) => {
+              const armed = shadePreset?.label === item.label;
+              return (
+                <button
+                  key={item.label}
+                  className={
+                    armed
+                      ? "min-h-8 rounded-full bg-leaf px-2 py-1 text-[11px] text-white"
+                      : "min-h-8 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf"
+                  }
+                  type="button"
+                  onClick={() => armShade(item)}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
+        {selectedBlock ? (
+          <label className="block text-sm">
+            {selectedBlock.label ?? "Shade"} ·{" "}
+            {selectedBlock.line
+              ? `${formatMetres(selectedBlock.width)} m long`
+              : formatSize(selectedBlock.width, selectedBlock.depth)}
+            <span className="mt-2 block text-xs text-ink/60">
+              Height {selectedBlock.height.toFixed(1)} m
+            </span>
+            <input
+              className="mt-1 w-full"
+              type="range"
+              min={0.5}
+              max={20}
+              step={0.5}
+              value={selectedBlock.height}
+              onChange={(event) => {
+                const height = Number(event.target.value);
+                update((current) => ({
+                  ...current,
+                  blocks: current.blocks.map((block) =>
+                    block.id === selectedBlock.id
+                      ? { ...block, height }
+                      : block,
+                  ),
+                }));
+              }}
+            />
+            <button
+              className="mt-2 text-xs text-clay"
+              type="button"
+              onClick={() => {
+                update((current) => ({
+                  ...current,
+                  blocks: current.blocks.filter(
+                    (block) => block.id !== selectedBlock.id,
+                  ),
+                }));
+                setSelectedBlockId(null);
+              }}
+            >
+              Remove
+            </button>
+          </label>
+        ) : null}
         <div className="space-y-2">
           <p className="text-xs font-medium text-ink/60">
-            Adjust the selected bed
+            Adjust the selection
           </p>
           <div className="flex flex-wrap gap-2">
             <ToolButton current={tool} tool="move" onClick={chooseTool}>
@@ -828,9 +1166,8 @@ function DesignerBody({
             </ToolButton>
           </div>
           <p className="text-sm">
-            Drag the bed, or its Move, Turn, or Size handle. The dashed lines
-            only tie those handles to the middle of the bed. Right-click a bed
-            to rename, recolour, copy, or delete it.
+            Drag a bed or shade block, or its Move, Turn, or Size handle.
+            Right-click for copy and delete.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -853,24 +1190,6 @@ function DesignerBody({
         </div>
         {drawingLabel ? (
           <p className="text-sm font-medium">{drawingLabel}</p>
-        ) : null}
-        {tool === "rect" ? (
-          <p className="text-sm">
-            Drag from one corner to the other. Corners snap to half metres, and
-            the size is shown while you drag.
-          </p>
-        ) : null}
-        {tool === "angled" ? (
-          <p className="text-sm">
-            Click one corner, then the other end of that side. Length snaps to
-            half metres and the angle to 5°. Click once more to set the width.
-          </p>
-        ) : null}
-        {tool === "freeform" ? (
-          <div className="text-sm">
-            <p>Drag around the bed. Release to close and smooth the outline.</p>
-            {drawNote ? <p className="mt-2 text-ink/70">{drawNote}</p> : null}
-          </div>
         ) : null}
         {tool === "place" && preset ? (
           <p className="text-sm">
@@ -905,33 +1224,6 @@ function DesignerBody({
             </p>
             {drawNote ? <p className="mt-2 text-ink/70">{drawNote}</p> : null}
           </div>
-        ) : null}
-        {tool === "bed" ? (
-          <div className="text-sm">
-            <p>
-              Click each corner, including diagonal ones. Corners snap to half a
-              metre, and the edge length is shown as you go. Click the first
-              corner to close the bed.
-            </p>
-            <button
-              className={`${quietButtonClass} mt-2`}
-              type="button"
-              disabled={draft.length < 3}
-              onClick={() => {
-                addBed(draft);
-                setTool("select");
-                setCursor(null);
-              }}
-            >
-              Finish bed
-            </button>
-          </div>
-        ) : null}
-        {tool === "block" ? (
-          <p className="text-sm">
-            Drag a rectangle for a wall, fence or building. The size is shown
-            while you drag, and it casts shade on the beds.
-          </p>
         ) : null}
         <p className="text-xs text-ink/60">
           {!garden.buildingsLoaded
@@ -1001,7 +1293,10 @@ function DesignerBody({
                   <button
                     className="text-left"
                     type="button"
-                    onClick={() => setSelectedBedId(bed.id)}
+                    onClick={() => {
+                      setSelectedBedId(bed.id);
+                      setSelectedBlockId(null);
+                    }}
                     onContextMenu={(event) =>
                       openMenu(event, { kind: "bed", id: bed.id })
                     }
@@ -1062,45 +1357,6 @@ function DesignerBody({
             </select>
           </label>
         ) : null}
-        {selectedBlock ? (
-          <label className="block text-sm">
-            Block height ({selectedBlock.height.toFixed(1)} m)
-            <input
-              className="mt-1 w-full"
-              type="range"
-              min={1}
-              max={20}
-              step={0.5}
-              value={selectedBlock.height}
-              onChange={(event) => {
-                const height = Number(event.target.value);
-                update((current) => ({
-                  ...current,
-                  blocks: current.blocks.map((block) =>
-                    block.id === selectedBlock.id
-                      ? { ...block, height }
-                      : block,
-                  ),
-                }));
-              }}
-            />
-            <button
-              className={`${quietButtonClass} mt-2`}
-              type="button"
-              onClick={() => {
-                update((current) => ({
-                  ...current,
-                  blocks: current.blocks.filter(
-                    (block) => block.id !== selectedBlock.id,
-                  ),
-                }));
-                setSelectedBlockId(null);
-              }}
-            >
-              Remove block
-            </button>
-          </label>
-        ) : null}
         <p className="text-sm">
           <Link
             to="/gardens/$gardenId/jobs"
@@ -1112,6 +1368,21 @@ function DesignerBody({
               : `${jobCount} jobs this year`}
           </Link>
         </p>
+        {garden.attribution ||
+        (garden.boundary && garden.boundary.length >= 3) ? (
+          <details className="text-xs text-ink/50">
+            <summary className="cursor-pointer">Sources</summary>
+            {garden.boundary && garden.boundary.length >= 3 ? (
+              <p className="mt-1">
+                Property outline from HM Land Registry. It is the indicative
+                freehold extent, not the legal title.
+              </p>
+            ) : null}
+            {garden.attribution ? (
+              <p className="mt-1">{garden.attribution}</p>
+            ) : null}
+          </details>
+        ) : null}
       </aside>
 
       <div
@@ -1204,13 +1475,13 @@ function DesignerBody({
         ) : null}
         <GardenCanvas
           beds={shownBeds}
-          blocks={garden.blocks}
+          blocks={shownBlocks}
           placements={shownPlacements}
           plantsById={plantsById}
           month={month}
           view={view}
           tool={tool}
-          selectedBedId={activeBed?.id ?? null}
+          selectedBedId={selectedBlockId ? null : (activeBed?.id ?? null)}
           selectedPlacementId={selectedPlacementId}
           selectedBlockId={selectedBlockId}
           draft={draft}
@@ -1240,6 +1511,7 @@ function DesignerBody({
               : undefined
           }
           onHandleSpots={setHandleSpots}
+          handlePoints={editingBlock ? blockCorners(editingBlock) : undefined}
           pointerRef={pointerRef}
           bedNames={
             garden.showBedNames && view === "plan"
@@ -1500,11 +1772,7 @@ function DesignerBody({
       .sort((a, b) => a.gap - b.gap)[0]?.placement;
     if (plant) return { kind: "plant" as const, id: plant.id };
     const block = garden.blocks
-      .filter(
-        (item) =>
-          Math.abs(point.x - item.x) <= item.width / 2 &&
-          Math.abs(point.y - item.y) <= item.depth / 2,
-      )
+      .filter((item) => pointInBlock(point, item))
       .sort((a, b) => a.width * a.depth - b.width * b.depth)[0];
     if (block) return { kind: "block" as const, id: block.id };
     const bed = garden.beds
@@ -2037,21 +2305,94 @@ function ToolButton({
   current,
   tool,
   onClick,
+  title,
+  compact = false,
   children,
 }: {
   current: Tool;
   tool: Tool;
   onClick: (tool: Tool) => void;
+  title?: string;
+  compact?: boolean;
   children: string;
 }) {
+  const selected = current === tool;
+  const className = compact
+    ? selected
+      ? "inline-flex min-h-8 items-center gap-1 rounded-full bg-leaf px-2 py-1 text-[11px] text-white hover:bg-leaf-dark"
+      : "inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf"
+    : selected
+      ? buttonClass
+      : quietButtonClass;
   return (
     <button
-      className={current === tool ? buttonClass : quietButtonClass}
+      className={className}
       type="button"
+      title={title}
       onClick={() => onClick(tool)}
     >
+      {compact ? <DrawToolIcon tool={tool} /> : null}
       {children}
     </button>
+  );
+}
+
+function DrawToolIcon({ tool }: { tool: Tool }) {
+  const stroke = {
+    viewBox: "0 0 16 16",
+    className: "h-3.5 w-3.5 shrink-0",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.5,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  if (tool === "select") {
+    return (
+      <svg {...stroke}>
+        <path d="M4 2.25v9.2l2.15-2.35 2.05 4.15 1.7-.85-2.05-4.1H12Z" />
+      </svg>
+    );
+  }
+  if (tool === "rect") {
+    return (
+      <svg {...stroke}>
+        <rect x="2.75" y="4.25" width="10.5" height="7.5" rx="0.5" />
+      </svg>
+    );
+  }
+  if (tool === "angled") {
+    return (
+      <svg {...stroke}>
+        <path d="M5.25 3.75h8L10.75 12.25h-8Z" />
+      </svg>
+    );
+  }
+  if (tool === "freeform") {
+    return (
+      <svg {...stroke}>
+        <path d="M3 8.25c1.4-3.4 3.4-4.6 5.2-3.2 1.6 1.2.8 3.2 2.6 3.5 1.5.2 2.3-1.5 2.7-2.3" />
+        <path d="M3 8.25c.3 3.3 2.4 4.8 4.6 4 1.8-.6 2.2-2.2 4-2" />
+      </svg>
+    );
+  }
+  if (tool === "bed") {
+    return (
+      <svg {...stroke}>
+        <path d="M3.25 11.25 6.5 3.5 13 6.25 10.25 12.75Z" />
+        <circle cx="3.25" cy="11.25" r="1" fill="currentColor" stroke="none" />
+        <circle cx="6.5" cy="3.5" r="1" fill="currentColor" stroke="none" />
+        <circle cx="13" cy="6.25" r="1" fill="currentColor" stroke="none" />
+        <circle cx="10.25" cy="12.75" r="1" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...stroke}>
+      <path d="M2.75 5.75h7.5v7.5h-7.5Z" />
+      <path d="M5.75 3.25h7.5v7.5" />
+    </svg>
   );
 }
 
@@ -2170,12 +2511,15 @@ function drawingPreview(
     blockDraft &&
     (blockDraft.width > 0 || blockDraft.depth > 0)
   ) {
+    const ends = blockDraft.line ? lineEnds(blockDraft) : null;
     return {
       preview: null,
       closed: false,
       measure: {
-        text: formatSize(blockDraft.width, blockDraft.depth),
-        at: { x: blockDraft.x, y: blockDraft.y },
+        text: blockDraft.line
+          ? `${formatMetres(blockDraft.width)} m long`
+          : formatSize(blockDraft.width, blockDraft.depth),
+        at: ends?.[1] ?? { x: blockDraft.x, y: blockDraft.y },
       },
     };
   }
@@ -2185,6 +2529,54 @@ function drawingPreview(
 function presetAngle(anchor: Point | null, cursor: Point): number {
   if (!anchor || distance(anchor, cursor) < 0.35) return Math.PI / 2;
   return snapAngle(Math.atan2(cursor.y - anchor.y, cursor.x - anchor.x));
+}
+
+function presetIsLine(preset: (typeof SHADE_PRESETS)[number]): boolean {
+  return "line" in preset && preset.line;
+}
+
+function madeShade(
+  preset: (typeof SHADE_PRESETS)[number],
+  center: Point,
+  rotation: number,
+  id: string,
+  length?: number,
+): ShadeBlock {
+  return {
+    id,
+    x: center.x,
+    y: center.y,
+    width: length ?? preset.width,
+    depth: preset.depth,
+    height: preset.height,
+    rotation,
+    line: presetIsLine(preset) || undefined,
+    source: "user",
+    label: preset.label,
+  };
+}
+
+/** A fence or hedge runs from the first point to the dragged point, at a fixed width. */
+function linePlacement(
+  origin: Point,
+  raw: Point,
+  boundary: Point[] | null,
+  threshold: number,
+): { center: Point; rotation: number; length: number } {
+  const end =
+    distance(origin, raw) < 0.35
+      ? { x: origin.x + 0.5, y: origin.y }
+      : snapToOutline(raw, boundary, threshold);
+  const length = Math.max(distance(origin, end), 0.5);
+  const rotation = Math.atan2(end.y - origin.y, end.x - origin.x);
+  return {
+    center: {
+      x: origin.x + (Math.cos(rotation) * length) / 2,
+      y: origin.y + (Math.sin(rotation) * length) / 2,
+    },
+    rotation,
+    length,
+  };
 }
 
 function blockBetween(id: string, start: Point, end: Point): ShadeBlock {

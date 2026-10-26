@@ -27,7 +27,26 @@ export function sunVector(azimuth: number, altitude: number): Vec3 {
   };
 }
 
-export function rayHitsBox(origin: Vec3, direction: Vec3, block: ShadeBlock): boolean {
+export function rayHitsBox(
+  origin: Vec3,
+  direction: Vec3,
+  block: ShadeBlock,
+): boolean {
+  const angle = -(block.rotation ?? 0);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const dx = origin.x - block.x;
+  const dy = origin.y - block.y;
+  const localOrigin = {
+    x: block.x + dx * cos - dy * sin,
+    y: block.y + dx * sin + dy * cos,
+    z: origin.z,
+  };
+  const localDirection = {
+    x: direction.x * cos - direction.y * sin,
+    y: direction.x * sin + direction.y * cos,
+    z: direction.z,
+  };
   const min = {
     x: block.x - block.width / 2,
     y: block.y - block.depth / 2,
@@ -42,8 +61,8 @@ export function rayHitsBox(origin: Vec3, direction: Vec3, block: ShadeBlock): bo
   let far = Number.POSITIVE_INFINITY;
   const axes = ["x", "y", "z"] as const;
   for (const axis of axes) {
-    const delta = direction[axis];
-    const start = origin[axis];
+    const delta = localDirection[axis];
+    const start = localOrigin[axis];
     const lower = min[axis];
     const upper = max[axis];
     if (Math.abs(delta) < 1e-8) {
@@ -82,11 +101,18 @@ export function daySamples(
   return samples;
 }
 
-export function midsummerSamples(latitude: number, longitude: number): SunSample[] {
+export function midsummerSamples(
+  latitude: number,
+  longitude: number,
+): SunSample[] {
   return daySamples(latitude, longitude, 5, 21);
 }
 
-export function sunlitHours(samples: SunSample[], origin: Vec3, blocks: ShadeBlock[]): number {
+export function sunlitHours(
+  samples: SunSample[],
+  origin: Vec3,
+  blocks: ShadeBlock[],
+): number {
   let hours = 0;
   for (const sample of samples) {
     if (sample.altitude <= LOW_SUN) continue;
@@ -103,8 +129,16 @@ export function classifyLight(hours: number): SunLevel {
   return "shade";
 }
 
-export function bedSun(points: Point[], samples: SunSample[], blocks: ShadeBlock[]) {
+export function bedSun(
+  points: Point[],
+  samples: SunSample[],
+  blocks: ShadeBlock[],
+) {
   const center = centroid(points);
-  const hours = sunlitHours(samples, { x: center.x, y: center.y, z: 0.4 }, blocks);
+  const hours = sunlitHours(
+    samples,
+    { x: center.x, y: center.y, z: 0.4 },
+    blocks,
+  );
   return { hours, light: classifyLight(hours) };
 }

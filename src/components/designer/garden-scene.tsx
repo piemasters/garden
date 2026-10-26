@@ -10,8 +10,19 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import * as THREE from "three";
 import { plotMetres } from "../../domain/boundary";
-import { adjustHandles, centroid, scaleLength } from "../../domain/geometry";
-import type { Bed, Placement, Plant, Point, ShadeBlock } from "../../domain/types";
+import {
+  adjustHandles,
+  centroid,
+  lineEnds,
+  scaleLength,
+} from "../../domain/geometry";
+import type {
+  Bed,
+  Placement,
+  Plant,
+  Point,
+  ShadeBlock,
+} from "../../domain/types";
 
 export interface SceneProps {
   beds: Bed[];
@@ -49,10 +60,15 @@ export interface SceneProps {
   onSelectBlock: (id: string) => void;
   onScale?: (metres: number, pixels: number) => void;
   showHandles: boolean;
-  onHandleSpots: (spots: { turn: Pixel; resize: Pixel; center: Pixel } | null) => void;
+  onHandleSpots: (
+    spots: { turn: Pixel; resize: Pixel; center: Pixel } | null,
+  ) => void;
+  handlePoints?: Point[] | null;
   pointerRef: { current: (clientX: number, clientY: number) => Point | null };
   bedNames: { id: string; name: string; points: Point[] }[] | null;
-  onBedLabels: (labels: { id: string; name: string; x: number; y: number }[]) => void;
+  onBedLabels: (
+    labels: { id: string; name: string; x: number; y: number }[],
+  ) => void;
 }
 
 type Pixel = { x: number; y: number };
@@ -90,23 +106,31 @@ export function GardenScene(props: SceneProps) {
       ) : (
         <GroundScale metres={metres} />
       )}
-      {props.view === "orbit" ? <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.15} /> : null}
+      {props.view === "orbit" ? (
+        <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.15} />
+      ) : null}
       <color attach="background" args={["#e7f0e4"]} />
       <ambientLight intensity={0.7} />
       <directionalLight position={[8, 14, 4]} intensity={1.1} />
       <hemisphereLight args={["#f4f1e8", "#6d8a62", 0.4]} />
-      <gridHelper args={[metres, metres, "#8ea184", "#d7e3cf"]} position={[0, 0.01, 0]} />
+      <gridHelper
+        args={[metres, metres, "#8ea184", "#d7e3cf"]}
+        position={[0, 0.01, 0]}
+      />
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0, 0]}
         onPointerDown={(event) => {
           event.stopPropagation();
-          const target = event.target as { setPointerCapture?: (pointerId: number) => void } | null;
+          const target = event.target as {
+            setPointerCapture?: (pointerId: number) => void;
+          } | null;
           target?.setPointerCapture?.(event.pointerId);
           props.onSurface(fromWorld(event.point), "down");
         }}
         onPointerMove={(event) => {
-          if (props.tool !== "select") props.onSurface(fromWorld(event.point), "move");
+          if (props.tool !== "select")
+            props.onSurface(fromWorld(event.point), "move");
         }}
         onPointerUp={(event) => {
           if (
@@ -146,17 +170,28 @@ export function GardenScene(props: SceneProps) {
           ? props.draft
           : []
       ).map((point, index) => (
-        <mesh key={`${point.x},${point.y},${index}`} position={[point.x, 0.12, -point.y]}>
+        <mesh
+          key={`${point.x},${point.y},${index}`}
+          position={[point.x, 0.12, -point.y]}
+        >
           <sphereGeometry args={[0.15, 12, 12]} />
           <meshBasicMaterial color="#1e4632" />
         </mesh>
       ))}
-      <DraftLine points={props.preview ?? props.draft} closed={props.previewClosed} />
-      {props.measure ? <MeasureLabel text={props.measure.text} at={props.measure.at} /> : null}
+      <DraftLine
+        points={props.preview ?? props.draft}
+        closed={props.previewClosed}
+      />
+      {props.measure ? (
+        <MeasureLabel text={props.measure.text} at={props.measure.at} />
+      ) : null}
       <HandleTracker
         points={
           props.showHandles
-            ? (props.beds.find((bed) => bed.id === props.selectedBedId)?.points ?? null)
+            ? (props.handlePoints ??
+              props.beds.find((bed) => bed.id === props.selectedBedId)
+                ?.points ??
+              null)
             : null
         }
         onSpots={props.onHandleSpots}
@@ -170,6 +205,7 @@ export function GardenScene(props: SceneProps) {
           selected={block.id === props.selectedBlockId}
           interactive={props.tool === "select"}
           onSelect={props.onSelectBlock}
+          onMove={props.tool === "select" ? props.onMoveBed : undefined}
         />
       ))}
       {props.blockDraft ? (
@@ -180,6 +216,7 @@ export function GardenScene(props: SceneProps) {
           onSelect={() => undefined}
         />
       ) : null}
+      {props.blockDraft?.line ? <LineDraft block={props.blockDraft} /> : null}
       {props.placements.map((placement) => {
         const plant = props.plantsById.get(placement.plantId);
         if (!plant) return null;
@@ -217,7 +254,10 @@ function PlanZoom({ metres }: { metres: number }) {
     const onWheel = (event: WheelEvent) => {
       if (!(camera instanceof THREE.OrthographicCamera)) return;
       event.preventDefault();
-      camera.zoom = Math.min(110, Math.max(8, camera.zoom * (event.deltaY > 0 ? 0.92 : 1.08)));
+      camera.zoom = Math.min(
+        110,
+        Math.max(8, camera.zoom * (event.deltaY > 0 ? 0.92 : 1.08)),
+      );
       camera.updateProjectionMatrix();
     };
     gl.domElement.addEventListener("wheel", onWheel, { passive: false });
@@ -242,7 +282,9 @@ function BoundaryLine({ points }: { points: Point[] | null }) {
   const line = [...points, first].map(
     (point) => [point.x, 0.08, -point.y] as [number, number, number],
   );
-  return <Line points={line} color="#8d5b3c" lineWidth={3} raycast={() => null} />;
+  return (
+    <Line points={line} color="#8d5b3c" lineWidth={3} raycast={() => null} />
+  );
 }
 
 function BedMesh({
@@ -288,7 +330,12 @@ function BedMesh({
           const raycaster = new THREE.Raycaster();
           raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
           const hit = new THREE.Vector3();
-          if (!raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit)) {
+          if (
+            !raycaster.ray.intersectPlane(
+              new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+              hit,
+            )
+          ) {
             return null;
           }
           return { x: hit.x, y: -hit.z };
@@ -326,10 +373,37 @@ function DraftLine({ points, closed }: { points: Point[]; closed: boolean }) {
   const line = closed && first ? [...points, first] : points;
   return (
     <Line
-      points={line.map((point) => [point.x, 0.12, -point.y] as [number, number, number])}
+      points={line.map(
+        (point) => [point.x, 0.12, -point.y] as [number, number, number],
+      )}
       color="#1e4632"
       lineWidth={2}
     />
+  );
+}
+
+/** A fence or hedge is only a few centimetres wide, so the drag is drawn as a stroke. */
+function LineDraft({ block }: { block: ShadeBlock }) {
+  const [start, end] = lineEnds(block);
+  const points = [
+    [start.x, 0.3, -start.y],
+    [end.x, 0.3, -end.y],
+  ] as [number, number, number][];
+  return (
+    <group>
+      <Line
+        points={points}
+        color="#ffffff"
+        lineWidth={9}
+        raycast={() => null}
+      />
+      <Line
+        points={points}
+        color="#1c2822"
+        lineWidth={4}
+        raycast={() => null}
+      />
+    </group>
   );
 }
 
@@ -406,7 +480,9 @@ function NameTracker({
     }
     const labels = beds.map((bed) => {
       const centre = centroid(bed.points);
-      const projected = new THREE.Vector3(centre.x, 0, -centre.y).project(camera);
+      const projected = new THREE.Vector3(centre.x, 0, -centre.y).project(
+        camera,
+      );
       return {
         id: bed.id,
         name: bed.name,
@@ -415,7 +491,10 @@ function NameTracker({
       };
     });
     const key = labels
-      .map((label) => `${label.id}:${label.name}:${Math.round(label.x)},${Math.round(label.y)}`)
+      .map(
+        (label) =>
+          `${label.id}:${label.name}:${Math.round(label.x)},${Math.round(label.y)}`,
+      )
       .join("|");
     if (key === last.current) return;
     last.current = key;
@@ -439,7 +518,11 @@ function MeasureLabel({ text, at }: { text: string; at: Point }) {
   );
 }
 
-function PlanScale({ onScale }: { onScale?: (metres: number, pixels: number) => void }) {
+function PlanScale({
+  onScale,
+}: {
+  onScale?: (metres: number, pixels: number) => void;
+}) {
   const { camera, size } = useThree();
   const last = useRef("");
   useFrame(() => {
@@ -470,8 +553,14 @@ function GroundScale({ metres }: { metres: number }) {
         color="#1c2822"
         lineWidth={2}
       />
-      <Html position={[length / 2, 0, -0.8]} center style={{ pointerEvents: "none" }}>
-        <span className="rounded bg-paper/90 px-1.5 py-0.5 text-xs text-ink">{length} m</span>
+      <Html
+        position={[length / 2, 0, -0.8]}
+        center
+        style={{ pointerEvents: "none" }}
+      >
+        <span className="rounded bg-paper/90 px-1.5 py-0.5 text-xs text-ink">
+          {length} m
+        </span>
       </Html>
     </group>
   );
@@ -482,26 +571,68 @@ function BlockMesh({
   selected,
   interactive,
   onSelect,
+  onMove,
 }: {
   block: ShadeBlock;
   selected: boolean;
   interactive: boolean;
   onSelect: (id: string) => void;
+  onMove?: SceneProps["onMoveBed"];
 }) {
+  const { camera, gl } = useThree();
   return (
     <mesh
-      position={[block.x, block.height / 2, -block.y]}
+      position={[block.x, Math.max(block.height, 0.05) / 2, -block.y]}
+      rotation={[0, block.rotation ?? 0, 0]}
       raycast={interactive ? undefined : () => null}
       onPointerDown={(event) => {
         event.stopPropagation();
         onSelect(block.id);
+        const point = fromWorld(event.point);
+        if (!onMove) return;
+        onMove(point, "down");
+        const read = (native: PointerEvent) => {
+          const rect = gl.domElement.getBoundingClientRect();
+          const x = ((native.clientX - rect.left) / rect.width) * 2 - 1;
+          const y = -((native.clientY - rect.top) / rect.height) * 2 + 1;
+          const raycaster = new THREE.Raycaster();
+          raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+          const hit = new THREE.Vector3();
+          if (
+            !raycaster.ray.intersectPlane(
+              new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+              hit,
+            )
+          ) {
+            return null;
+          }
+          return { x: hit.x, y: -hit.z };
+        };
+        const move = (native: PointerEvent) => {
+          const next = read(native);
+          if (next) onMove(next, "move");
+        };
+        const up = (native: PointerEvent) => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          const next = read(native);
+          if (next) onMove(next, "up");
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
       }}
     >
       <boxGeometry
-        args={[Math.max(block.width, 0.05), block.height, Math.max(block.depth, 0.05)]}
+        args={[
+          Math.max(block.width, 0.05),
+          Math.max(block.height, 0.05),
+          Math.max(block.depth, 0.05),
+        ]}
       />
       <meshStandardMaterial
-        color={selected ? "#5d6b73" : block.source === "osm" ? "#9aa3a0" : "#6e7c86"}
+        color={
+          selected ? "#5d6b73" : block.source === "osm" ? "#9aa3a0" : "#6e7c86"
+        }
         transparent
         opacity={0.88}
       />
@@ -541,7 +672,9 @@ function PlantMesh({
     <group position={[placement.x, 0, -placement.y]}>
       <IgnorePointer>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]}>
-          <ringGeometry args={[Math.max(spread / 2 - 0.04, 0.04), spread / 2, 20]} />
+          <ringGeometry
+            args={[Math.max(spread / 2 - 0.04, 0.04), spread / 2, 20]}
+          />
           <meshBasicMaterial color={selected ? "#1e4632" : "#6d7a62"} />
         </mesh>
         <PlantBody
@@ -573,13 +706,20 @@ function PlantMesh({
               raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
               const hit = new THREE.Vector3();
               if (
-                !raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit)
+                !raycaster.ray.intersectPlane(
+                  new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+                  hit,
+                )
               )
                 return null;
               return { x: hit.x, y: -hit.z };
             };
             const move = (native: PointerEvent) => {
-              if (!moved && Math.hypot(native.clientX - originX, native.clientY - originY) < 5)
+              if (
+                !moved &&
+                Math.hypot(native.clientX - originX, native.clientY - originY) <
+                  5
+              )
                 return;
               const point = read(native);
               if (!point) return;

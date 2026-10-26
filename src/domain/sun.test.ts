@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 import { footprintBlock, pointInPolygon } from "./geometry";
-import { classifyLight, midsummerSamples, rayHitsBox, sunlitHours, sunVector } from "./sun";
+import {
+  classifyLight,
+  midsummerSamples,
+  rayHitsBox,
+  sunlitHours,
+  sunVector,
+} from "./sun";
 import type { ShadeBlock } from "./types";
 
 const southBlock: ShadeBlock = {
@@ -25,7 +31,18 @@ describe("sun and shade", () => {
     const direction = sunVector(180, 28);
     const origin = { x: 0, y: 0, z: 0.4 };
     expect(rayHitsBox(origin, direction, southBlock)).toBe(true);
-    expect(rayHitsBox(origin, direction, { ...southBlock, id: "north", y: 4 })).toBe(false);
+    expect(
+      rayHitsBox(origin, direction, { ...southBlock, id: "north", y: 4 }),
+    ).toBe(false);
+    expect(rayHitsBox({ x: 3, y: 0, z: 0.4 }, direction, southBlock)).toBe(
+      true,
+    );
+    expect(
+      rayHitsBox({ x: 3, y: 0, z: 0.4 }, direction, {
+        ...southBlock,
+        rotation: Math.PI / 2,
+      }),
+    ).toBe(false);
   });
 
   it("classifies midsummer hours", () => {
