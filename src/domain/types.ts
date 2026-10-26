@@ -136,6 +136,8 @@ export interface Garden {
   showUnsuitable: boolean;
   /** Plan labels on each bed. Missing means hidden. */
   showBedNames?: boolean;
+  /** Ground shadows from shade items. Missing means shown. */
+  showShade?: boolean;
   boundary: Point[] | null;
   attribution: string | null;
 }

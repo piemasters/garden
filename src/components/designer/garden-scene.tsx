@@ -7,23 +7,22 @@ import {
 } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import type { ReactNode } from "react";
+import type { MutableRefObject, ReactNode } from "react";
 import * as THREE from "three";
 import { plotMetres } from "../../domain/boundary";
-import {
-  adjustHandles,
-  centroid,
-  lineEnds,
-  scaleLength,
-} from "../../domain/geometry";
-import type {
-  Bed,
-  Placement,
-  Plant,
-  Point,
-  ShadeBlock,
-} from "../../domain/types";
+import { adjustHandles, centroid, lineEnds, scaleLength } from "../../domain/geometry";
+import { shadowFootprint, type SunSample } from "../../domain/sun";
+import type { Bed, Placement, Plant, Point, ShadeBlock } from "../../domain/types";
 import { ShadeBody } from "./shade-shape";
+
+const PLAN_CAMERA_POSITION: [number, number, number] = [0, 40, 0];
+const GROUND_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+type PlanControls = {
+  panByPixels: (dx: number, dy: number) => void;
+  setGrabbing: (active: boolean) => void;
+  refit: () => void;
+};
 
 export interface SceneProps {
   beds: Bed[];
@@ -53,6 +52,7 @@ export interface SceneProps {
   blockDraft: ShadeBlock | null;
   boundary: Point[] | null;
   sunArc: Array<[number, number, number]>;
+  shadeSamples: SunSample[];
   onSurface: (point: Point, phase: "down" | "move" | "up") => void;
   onMoveBed?: (point: Point, phase: "down" | "move" | "up") => void;
   onSelectPlacement: (id: string) => void;
@@ -61,15 +61,11 @@ export interface SceneProps {
   onSelectBlock: (id: string) => void;
   onScale?: (metres: number, pixels: number) => void;
   showHandles: boolean;
-  onHandleSpots: (
-    spots: { turn: Pixel; resize: Pixel; center: Pixel } | null,
-  ) => void;
+  onHandleSpots: (spots: { turn: Pixel; resize: Pixel; center: Pixel } | null) => void;
   handlePoints?: Point[] | null;
   pointerRef: { current: (clientX: number, clientY: number) => Point | null };
   bedNames: { id: string; name: string; points: Point[] }[] | null;
-  onBedLabels: (
-    labels: { id: string; name: string; x: number; y: number }[],
-  ) => void;
+  onBedLabels: (labels: { id: string; name: string; x: number; y: number }[]) => void;
 }
 
 type Pixel = { x: number; y: number };
@@ -77,18 +73,27 @@ type Pixel = { x: number; y: number };
 export function GardenScene(props: SceneProps) {
   const metres = plotMetres(props.boundary);
   const orbit = 12 * (metres / 32);
+  const planControls = useRef<PlanControls>({
+    panByPixels: () => undefined,
+    setGrabbing: () => undefined,
+    refit: () => undefined,
+  });
   return (
-    <Canvas key={props.view} className="h-full w-full" gl={{ antialias: true }}>
+    <Canvas
+      key={props.view}
+      className="h-full w-full"
+      style={{ touchAction: "none" }}
+      gl={{ antialias: true }}
+    >
       {props.view === "plan" ? (
         <OrthographicCamera
           makeDefault
-          position={[0, 40, 0]}
+          position={PLAN_CAMERA_POSITION}
           zoom={36}
           near={0.1}
           far={400}
           onUpdate={(camera) => {
             camera.up.set(0, 0, -1);
-            camera.lookAt(0, 0, 0);
           }}
         />
       ) : (
@@ -101,14 +106,24 @@ export function GardenScene(props: SceneProps) {
           onUpdate={(camera) => camera.lookAt(0, 0, 0)}
         />
       )}
-      {props.view === "plan" ? <PlanZoom metres={metres} /> : null}
+      {props.view === "plan" ? <PlanNavigation metres={metres} controls={planControls} /> : null}
       {props.view === "plan" ? (
         <PlanScale onScale={props.onScale} />
       ) : (
         <GroundScale metres={metres} />
       )}
       {props.view === "orbit" ? (
-        <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.15} />
+        <OrbitControls
+          makeDefault
+          maxPolarAngle={Math.PI / 2.15}
+          zoomToCursor
+          screenSpacePanning
+          mouseButtons={{
+            LEFT: THREE.MOUSE.ROTATE,
+            MIDDLE: THREE.MOUSE.PAN,
+            RIGHT: THREE.MOUSE.PAN,
+          }}
+        />
       ) : null}
       <color attach="background" args={["#e7f0e4"]} />
       <ambientLight intensity={0.7} />
@@ -117,44 +132,59 @@ export function GardenScene(props: SceneProps) {
       <gridHelper
         args={[metres, metres, "#8ea184", "#d7e3cf"]}
         position={[0, 0.01, 0]}
+        raycast={() => null}
       />
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0, 0]}
-        onPointerDown={(event) => {
-          event.stopPropagation();
-          const target = event.target as {
-            setPointerCapture?: (pointerId: number) => void;
-          } | null;
-          target?.setPointerCapture?.(event.pointerId);
-          props.onSurface(fromWorld(event.point), "down");
-        }}
-        onPointerMove={(event) => {
-          if (props.tool !== "select")
-            props.onSurface(fromWorld(event.point), "move");
-        }}
-        onPointerUp={(event) => {
-          if (
-            props.tool === "block" ||
-            props.tool === "rect" ||
-            props.tool === "freeform" ||
-            props.tool === "place" ||
-            props.tool === "rotate" ||
-            props.tool === "scale" ||
-            props.tool === "move"
-          ) {
-            props.onSurface(fromWorld(event.point), "up");
-          }
-        }}
-      >
-        <planeGeometry args={[metres + 16, metres + 16]} />
-        <meshStandardMaterial color="#d5e3c8" />
-      </mesh>
+      {props.view === "plan" ? (
+        <>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} raycast={() => null}>
+            <planeGeometry args={[metres + 16, metres + 16]} />
+            <meshStandardMaterial color="#d5e3c8" />
+          </mesh>
+          <PlanGround
+            metres={metres}
+            tool={props.tool}
+            controls={planControls}
+            onSurface={props.onSurface}
+          />
+        </>
+      ) : (
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, 0, 0]}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            props.onSurface(fromWorld(event.point), "down");
+          }}
+          onPointerMove={(event) => {
+            if (props.tool !== "select") props.onSurface(fromWorld(event.point), "move");
+          }}
+          onPointerUp={(event) => {
+            if (
+              props.tool === "block" ||
+              props.tool === "rect" ||
+              props.tool === "freeform" ||
+              props.tool === "place" ||
+              props.tool === "rotate" ||
+              props.tool === "scale" ||
+              props.tool === "move"
+            ) {
+              props.onSurface(fromWorld(event.point), "up");
+            }
+          }}
+        >
+          <planeGeometry args={[metres + 16, metres + 16]} />
+          <meshStandardMaterial color="#d5e3c8" />
+        </mesh>
+      )}
       <NorthMark metres={metres} />
       <BoundaryLine points={props.boundary} />
       {props.sunArc.length > 1 ? (
         <Line points={props.sunArc} color="#e2b33a" lineWidth={2} />
       ) : null}
+      <CastShade
+        blocks={props.blockDraft ? [...props.blocks, props.blockDraft] : props.blocks}
+        samples={props.shadeSamples}
+      />
       {props.beds.map((bed) => (
         <BedMesh
           key={bed.id}
@@ -171,27 +201,18 @@ export function GardenScene(props: SceneProps) {
           ? props.draft
           : []
       ).map((point, index) => (
-        <mesh
-          key={`${point.x},${point.y},${index}`}
-          position={[point.x, 0.12, -point.y]}
-        >
+        <mesh key={`${point.x},${point.y},${index}`} position={[point.x, 0.12, -point.y]}>
           <sphereGeometry args={[0.15, 12, 12]} />
           <meshBasicMaterial color="#1e4632" />
         </mesh>
       ))}
-      <DraftLine
-        points={props.preview ?? props.draft}
-        closed={props.previewClosed}
-      />
-      {props.measure ? (
-        <MeasureLabel text={props.measure.text} at={props.measure.at} />
-      ) : null}
+      <DraftLine points={props.preview ?? props.draft} closed={props.previewClosed} />
+      {props.measure ? <MeasureLabel text={props.measure.text} at={props.measure.at} /> : null}
       <HandleTracker
         points={
           props.showHandles
             ? (props.handlePoints ??
-              props.beds.find((bed) => bed.id === props.selectedBedId)
-                ?.points ??
+              props.beds.find((bed) => bed.id === props.selectedBedId)?.points ??
               null)
             : null
         }
@@ -243,28 +264,283 @@ function fromWorld(point: { x: number; z: number }): Point {
   return { x: point.x, y: -point.z };
 }
 
-function PlanZoom({ metres }: { metres: number }) {
+function fittedZoom(metres: number, width: number, height: number) {
+  return Math.min(110, Math.max(8, Math.min(width, height) / (metres * 1.15)));
+}
+
+function PlanNavigation({
+  metres,
+  controls,
+}: {
+  metres: number;
+  controls: MutableRefObject<PlanControls>;
+}) {
   const { camera, gl, size } = useThree();
+  const target = useRef(new THREE.Vector3());
+  const fitted = useRef(36);
+  const space = useRef(false);
+  const dragging = useRef(false);
+
+  const apply = () => {
+    if (!(camera instanceof THREE.OrthographicCamera)) return;
+    const limit = metres;
+    target.current.x = THREE.MathUtils.clamp(target.current.x, -limit, limit);
+    target.current.z = THREE.MathUtils.clamp(target.current.z, -limit, limit);
+    camera.position.set(target.current.x, 40, target.current.z);
+    camera.up.set(0, 0, -1);
+    camera.lookAt(target.current.x, 0, target.current.z);
+    camera.updateProjectionMatrix();
+  };
+
   useLayoutEffect(() => {
     if (!(camera instanceof THREE.OrthographicCamera)) return;
-    const fitted = Math.min(size.width, size.height) / (metres * 1.15);
-    camera.zoom = Math.min(110, Math.max(8, fitted));
-    camera.updateProjectionMatrix();
+    fitted.current = fittedZoom(metres, size.width, size.height);
+    camera.zoom = fitted.current;
+    target.current.set(0, 0, 0);
+    apply();
   }, [camera, metres, size.height, size.width]);
+
+  useFrame(apply);
+
   useEffect(() => {
+    const panByPixels = (dx: number, dy: number) => {
+      if (!(camera instanceof THREE.OrthographicCamera)) return;
+      const rect = gl.domElement.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const worldWidth = (camera.right - camera.left) / camera.zoom;
+      const worldHeight = (camera.top - camera.bottom) / camera.zoom;
+      target.current.x -= (dx / rect.width) * worldWidth;
+      target.current.z -= (dy / rect.height) * worldHeight;
+      apply();
+    };
+    const zoomAt = (event: WheelEvent) => {
+      if (!(camera instanceof THREE.OrthographicCamera)) return;
+      const rect = gl.domElement.getBoundingClientRect();
+      const before = groundAt(camera, event.clientX, event.clientY, rect);
+      camera.zoom = THREE.MathUtils.clamp(camera.zoom * (event.deltaY > 0 ? 0.92 : 1.08), 8, 110);
+      camera.updateProjectionMatrix();
+      camera.updateMatrixWorld();
+      const after = groundAt(camera, event.clientX, event.clientY, rect);
+      if (before && after) {
+        target.current.x += before.x - after.x;
+        target.current.z += before.z - after.z;
+      }
+      apply();
+    };
+    controls.current = {
+      panByPixels,
+      setGrabbing: (active) => {
+        dragging.current = active;
+        gl.domElement.style.cursor = active ? "grabbing" : space.current ? "grab" : "";
+      },
+      refit: () => {
+        if (!(camera instanceof THREE.OrthographicCamera)) return;
+        target.current.set(0, 0, 0);
+        camera.zoom = fitted.current;
+        apply();
+      },
+    };
+
     const onWheel = (event: WheelEvent) => {
       if (!(camera instanceof THREE.OrthographicCamera)) return;
       event.preventDefault();
-      camera.zoom = Math.min(
-        110,
-        Math.max(8, camera.zoom * (event.deltaY > 0 ? 0.92 : 1.08)),
-      );
-      camera.updateProjectionMatrix();
+      let dx = event.deltaX;
+      let dy = event.deltaY;
+      if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        dx *= 16;
+        dy *= 16;
+      } else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        dx *= gl.domElement.clientWidth;
+        dy *= gl.domElement.clientHeight;
+      }
+      // A sideways swipe still slides the plan. An up or down scroll zooms.
+      if (!event.ctrlKey && !event.metaKey && Math.abs(dx) > Math.abs(dy)) {
+        panByPixels(-dx, 0);
+        return;
+      }
+      zoomAt(event);
     };
+
+    let lastX = 0;
+    let lastY = 0;
+    const onPointerDown = (event: PointerEvent) => {
+      const middle = event.button === 1;
+      const spaceDrag = event.button === 0 && space.current;
+      if (!middle && !spaceDrag) return;
+      event.preventDefault();
+      event.stopPropagation();
+      dragging.current = true;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      gl.domElement.style.cursor = "grabbing";
+      const move = (native: PointerEvent) => {
+        panByPixels(native.clientX - lastX, native.clientY - lastY);
+        lastX = native.clientX;
+        lastY = native.clientY;
+      };
+      const up = () => {
+        dragging.current = false;
+        gl.domElement.style.cursor = space.current ? "grab" : "";
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    };
+    const onAuxClick = (event: MouseEvent) => {
+      if (event.button === 1) event.preventDefault();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isTyping(event)) return;
+      if (event.code === "Space") {
+        event.preventDefault();
+        space.current = true;
+        if (!dragging.current) gl.domElement.style.cursor = "grab";
+        return;
+      }
+      const step = event.shiftKey ? 120 : 48;
+      if (event.code === "ArrowLeft") panByPixels(-step, 0);
+      else if (event.code === "ArrowRight") panByPixels(step, 0);
+      else if (event.code === "ArrowUp") panByPixels(0, -step);
+      else if (event.code === "ArrowDown") panByPixels(0, step);
+      else return;
+      event.preventDefault();
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.code !== "Space") return;
+      space.current = false;
+      if (!dragging.current) gl.domElement.style.cursor = "";
+    };
+
     gl.domElement.addEventListener("wheel", onWheel, { passive: false });
-    return () => gl.domElement.removeEventListener("wheel", onWheel);
-  }, [camera, gl]);
+    gl.domElement.addEventListener("pointerdown", onPointerDown, true);
+    gl.domElement.addEventListener("auxclick", onAuxClick);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      gl.domElement.removeEventListener("wheel", onWheel);
+      gl.domElement.removeEventListener("pointerdown", onPointerDown, true);
+      gl.domElement.removeEventListener("auxclick", onAuxClick);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      gl.domElement.style.cursor = "";
+    };
+  }, [camera, controls, gl, metres]);
+
   return null;
+}
+
+function groundAt(camera: THREE.Camera, clientX: number, clientY: number, rect: DOMRect) {
+  const x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  const y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+  const hit = new THREE.Vector3();
+  if (!raycaster.ray.intersectPlane(GROUND_PLANE, hit)) return null;
+  return hit;
+}
+
+function isTyping(event: KeyboardEvent) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return target.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
+function PlanGround({
+  metres,
+  tool,
+  controls,
+  onSurface,
+}: {
+  metres: number;
+  tool: SceneProps["tool"];
+  controls: MutableRefObject<PlanControls>;
+  onSurface: SceneProps["onSurface"];
+}) {
+  const { gl } = useThree();
+  const drag = useRef<{
+    id: number;
+    x: number;
+    y: number;
+    moved: boolean;
+    point: Point;
+  } | null>(null);
+  const drawing =
+    tool === "block" ||
+    tool === "rect" ||
+    tool === "freeform" ||
+    tool === "place" ||
+    tool === "rotate" ||
+    tool === "scale" ||
+    tool === "move";
+  return (
+    <mesh
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, -0.02, 0]}
+      onPointerOver={() => {
+        if (tool === "select" && !drag.current) gl.domElement.style.cursor = "grab";
+      }}
+      onPointerOut={() => {
+        if (!drag.current) gl.domElement.style.cursor = "";
+      }}
+      onDoubleClick={(event) => {
+        if (tool !== "select") return;
+        event.stopPropagation();
+        controls.current.refit();
+      }}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        const target = event.target as {
+          setPointerCapture?: (pointerId: number) => void;
+        } | null;
+        try {
+          target?.setPointerCapture?.(event.pointerId);
+        } catch {
+          // A synthetic pointer has nothing to capture. Move and release still run.
+        }
+        if (tool === "select" && event.button === 0) {
+          drag.current = {
+            id: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+            moved: false,
+            point: fromWorld(event.point),
+          };
+          return;
+        }
+        onSurface(fromWorld(event.point), "down");
+      }}
+      onPointerMove={(event) => {
+        const active = drag.current;
+        if (active && event.pointerId === active.id) {
+          const dx = event.clientX - active.x;
+          const dy = event.clientY - active.y;
+          if (!active.moved && dx * dx + dy * dy < 25) return;
+          active.moved = true;
+          controls.current.setGrabbing(true);
+          controls.current.panByPixels(dx, dy);
+          active.x = event.clientX;
+          active.y = event.clientY;
+          return;
+        }
+        if (tool !== "select") onSurface(fromWorld(event.point), "move");
+      }}
+      onPointerUp={(event) => {
+        const active = drag.current;
+        if (active && event.pointerId === active.id) {
+          drag.current = null;
+          controls.current.setGrabbing(false);
+          if (!active.moved) onSurface(active.point, "down");
+          return;
+        }
+        if (drawing) onSurface(fromWorld(event.point), "up");
+      }}
+    >
+      <planeGeometry args={[metres * 4, metres * 4]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>
+  );
 }
 
 function NorthMark({ metres }: { metres: number }) {
@@ -276,6 +552,50 @@ function NorthMark({ metres }: { metres: number }) {
   );
 }
 
+function CastShade({ blocks, samples }: { blocks: ShadeBlock[]; samples: SunSample[] }) {
+  const patches = useMemo(() => {
+    const next: { key: string; points: Point[] }[] = [];
+    blocks.forEach((block, blockIndex) => {
+      samples.forEach((sample, sampleIndex) => {
+        const points = shadowFootprint(block, sample.azimuth, sample.altitude);
+        if (points.length >= 3)
+          next.push({ key: `${block.id}-${blockIndex}-${sampleIndex}`, points });
+      });
+    });
+    return next;
+  }, [blocks, samples]);
+  return (
+    <group>
+      {patches.map((patch) => (
+        <ShadowPatch key={patch.key} points={patch.points} />
+      ))}
+    </group>
+  );
+}
+
+function ShadowPatch({ points }: { points: Point[] }) {
+  const geometry = useMemo(() => {
+    const shape = new THREE.Shape();
+    points.forEach((point, index) => {
+      if (index === 0) shape.moveTo(point.x, point.y);
+      else shape.lineTo(point.x, point.y);
+    });
+    shape.closePath();
+    return new THREE.ShapeGeometry(shape);
+  }, [points]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return (
+    <mesh
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, 0.08, 0]}
+      geometry={geometry}
+      raycast={() => null}
+    >
+      <meshBasicMaterial color="#243044" transparent opacity={0.16} depthWrite={false} />
+    </mesh>
+  );
+}
+
 function BoundaryLine({ points }: { points: Point[] | null }) {
   if (!points || points.length < 3) return null;
   const first = points[0];
@@ -283,9 +603,7 @@ function BoundaryLine({ points }: { points: Point[] | null }) {
   const line = [...points, first].map(
     (point) => [point.x, 0.08, -point.y] as [number, number, number],
   );
-  return (
-    <Line points={line} color="#8d5b3c" lineWidth={3} raycast={() => null} />
-  );
+  return <Line points={line} color="#8d5b3c" lineWidth={3} raycast={() => null} />;
 }
 
 function BedMesh({
@@ -331,12 +649,7 @@ function BedMesh({
           const raycaster = new THREE.Raycaster();
           raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
           const hit = new THREE.Vector3();
-          if (
-            !raycaster.ray.intersectPlane(
-              new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
-              hit,
-            )
-          ) {
+          if (!raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit)) {
             return null;
           }
           return { x: hit.x, y: -hit.z };
@@ -374,9 +687,7 @@ function DraftLine({ points, closed }: { points: Point[]; closed: boolean }) {
   const line = closed && first ? [...points, first] : points;
   return (
     <Line
-      points={line.map(
-        (point) => [point.x, 0.12, -point.y] as [number, number, number],
-      )}
+      points={line.map((point) => [point.x, 0.12, -point.y] as [number, number, number])}
       color="#1e4632"
       lineWidth={2}
     />
@@ -392,18 +703,8 @@ function LineDraft({ block }: { block: ShadeBlock }) {
   ] as [number, number, number][];
   return (
     <group>
-      <Line
-        points={points}
-        color="#ffffff"
-        lineWidth={9}
-        raycast={() => null}
-      />
-      <Line
-        points={points}
-        color="#1c2822"
-        lineWidth={4}
-        raycast={() => null}
-      />
+      <Line points={points} color="#ffffff" lineWidth={9} raycast={() => null} />
+      <Line points={points} color="#1c2822" lineWidth={4} raycast={() => null} />
     </group>
   );
 }
@@ -481,9 +782,7 @@ function NameTracker({
     }
     const labels = beds.map((bed) => {
       const centre = centroid(bed.points);
-      const projected = new THREE.Vector3(centre.x, 0, -centre.y).project(
-        camera,
-      );
+      const projected = new THREE.Vector3(centre.x, 0, -centre.y).project(camera);
       return {
         id: bed.id,
         name: bed.name,
@@ -492,10 +791,7 @@ function NameTracker({
       };
     });
     const key = labels
-      .map(
-        (label) =>
-          `${label.id}:${label.name}:${Math.round(label.x)},${Math.round(label.y)}`,
-      )
+      .map((label) => `${label.id}:${label.name}:${Math.round(label.x)},${Math.round(label.y)}`)
       .join("|");
     if (key === last.current) return;
     last.current = key;
@@ -519,11 +815,7 @@ function MeasureLabel({ text, at }: { text: string; at: Point }) {
   );
 }
 
-function PlanScale({
-  onScale,
-}: {
-  onScale?: (metres: number, pixels: number) => void;
-}) {
+function PlanScale({ onScale }: { onScale?: (metres: number, pixels: number) => void }) {
   const { camera, size } = useThree();
   const last = useRef("");
   useFrame(() => {
@@ -554,14 +846,8 @@ function GroundScale({ metres }: { metres: number }) {
         color="#1c2822"
         lineWidth={2}
       />
-      <Html
-        position={[length / 2, 0, -0.8]}
-        center
-        style={{ pointerEvents: "none" }}
-      >
-        <span className="rounded bg-paper/90 px-1.5 py-0.5 text-xs text-ink">
-          {length} m
-        </span>
+      <Html position={[length / 2, 0, -0.8]} center style={{ pointerEvents: "none" }}>
+        <span className="rounded bg-paper/90 px-1.5 py-0.5 text-xs text-ink">{length} m</span>
       </Html>
     </group>
   );
@@ -585,10 +871,7 @@ function BlockMesh({
   const depth = Math.max(block.depth, 0.05);
   const height = Math.max(block.height, 0.05);
   return (
-    <group
-      position={[block.x, 0, -block.y]}
-      rotation={[0, block.rotation ?? 0, 0]}
-    >
+    <group position={[block.x, 0, -block.y]} rotation={[0, block.rotation ?? 0, 0]}>
       <mesh
         position={[0, height / 2, 0]}
         visible={false}
@@ -607,10 +890,7 @@ function BlockMesh({
             raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
             const hit = new THREE.Vector3();
             if (
-              !raycaster.ray.intersectPlane(
-                new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
-                hit,
-              )
+              !raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit)
             ) {
               return null;
             }
@@ -633,10 +913,7 @@ function BlockMesh({
         <boxGeometry args={[width, height, depth]} />
         <meshBasicMaterial />
       </mesh>
-      <ShadeBody
-        block={{ ...block, width, depth, height }}
-        selected={selected}
-      />
+      <ShadeBody block={{ ...block, width, depth, height }} selected={selected} />
     </group>
   );
 }
@@ -673,9 +950,7 @@ function PlantMesh({
     <group position={[placement.x, 0, -placement.y]}>
       <IgnorePointer>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]}>
-          <ringGeometry
-            args={[Math.max(spread / 2 - 0.04, 0.04), spread / 2, 20]}
-          />
+          <ringGeometry args={[Math.max(spread / 2 - 0.04, 0.04), spread / 2, 20]} />
           <meshBasicMaterial color={selected ? "#1e4632" : "#6d7a62"} />
         </mesh>
         <PlantBody
@@ -707,20 +982,13 @@ function PlantMesh({
               raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
               const hit = new THREE.Vector3();
               if (
-                !raycaster.ray.intersectPlane(
-                  new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
-                  hit,
-                )
+                !raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit)
               )
                 return null;
               return { x: hit.x, y: -hit.z };
             };
             const move = (native: PointerEvent) => {
-              if (
-                !moved &&
-                Math.hypot(native.clientX - originX, native.clientY - originY) <
-                  5
-              )
+              if (!moved && Math.hypot(native.clientX - originX, native.clientY - originY) < 5)
                 return;
               const point = read(native);
               if (!point) return;

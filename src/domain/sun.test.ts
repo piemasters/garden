@@ -4,6 +4,7 @@ import {
   classifyLight,
   midsummerSamples,
   rayHitsBox,
+  shadowFootprint,
   sunlitHours,
   sunVector,
 } from "./sun";
@@ -31,18 +32,35 @@ describe("sun and shade", () => {
     const direction = sunVector(180, 28);
     const origin = { x: 0, y: 0, z: 0.4 };
     expect(rayHitsBox(origin, direction, southBlock)).toBe(true);
-    expect(
-      rayHitsBox(origin, direction, { ...southBlock, id: "north", y: 4 }),
-    ).toBe(false);
-    expect(rayHitsBox({ x: 3, y: 0, z: 0.4 }, direction, southBlock)).toBe(
-      true,
-    );
+    expect(rayHitsBox(origin, direction, { ...southBlock, id: "north", y: 4 })).toBe(false);
+    expect(rayHitsBox({ x: 3, y: 0, z: 0.4 }, direction, southBlock)).toBe(true);
     expect(
       rayHitsBox({ x: 3, y: 0, z: 0.4 }, direction, {
         ...southBlock,
         rotation: Math.PI / 2,
       }),
     ).toBe(false);
+  });
+
+  it("throws a building's shadow away from the sun", () => {
+    const block: ShadeBlock = {
+      id: "house",
+      x: 0,
+      y: 0,
+      width: 4,
+      depth: 2,
+      height: 6,
+      source: "user",
+    };
+    const north = shadowFootprint(block, 180, 45);
+    expect(pointInPolygon({ x: 0, y: 4 }, north)).toBe(true);
+    expect(pointInPolygon({ x: 0, y: -3 }, north)).toBe(false);
+    const south = shadowFootprint(block, 0, 45);
+    expect(pointInPolygon({ x: 0, y: -4 }, south)).toBe(true);
+    expect(pointInPolygon({ x: 0, y: 4 }, south)).toBe(false);
+    const high = Math.max(...shadowFootprint(block, 180, 60).map((point) => point.y));
+    const low = Math.max(...shadowFootprint(block, 180, 30).map((point) => point.y));
+    expect(low).toBeGreaterThan(high);
   });
 
   it("classifies midsummer hours", () => {

@@ -1,5 +1,5 @@
 import { getPosition } from "suncalc";
-import { centroid } from "./geometry";
+import { blockCorners, centroid } from "./geometry";
 import type { Point, ShadeBlock, SunLevel } from "./types";
 
 export interface SunSample {
@@ -27,11 +27,7 @@ export function sunVector(azimuth: number, altitude: number): Vec3 {
   };
 }
 
-export function rayHitsBox(
-  origin: Vec3,
-  direction: Vec3,
-  block: ShadeBlock,
-): boolean {
+export function rayHitsBox(origin: Vec3, direction: Vec3, block: ShadeBlock): boolean {
   const angle = -(block.rotation ?? 0);
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
@@ -101,18 +97,11 @@ export function daySamples(
   return samples;
 }
 
-export function midsummerSamples(
-  latitude: number,
-  longitude: number,
-): SunSample[] {
+export function midsummerSamples(latitude: number, longitude: number): SunSample[] {
   return daySamples(latitude, longitude, 5, 21);
 }
 
-export function sunlitHours(
-  samples: SunSample[],
-  origin: Vec3,
-  blocks: ShadeBlock[],
-): number {
+export function sunlitHours(samples: SunSample[], origin: Vec3, blocks: ShadeBlock[]): number {
   let hours = 0;
   for (const sample of samples) {
     if (sample.altitude <= LOW_SUN) continue;
@@ -123,22 +112,60 @@ export function sunlitHours(
   return hours;
 }
 
+const SHADOW_LIMIT_M = 40;
+
+/** Ground covered by a block's shadow. The shape includes the footprint. */
+export function shadowFootprint(block: ShadeBlock, azimuth: number, altitude: number): Point[] {
+  const corners = blockCorners(block);
+  if (altitude <= 1 || block.height <= 0) return corners;
+  const vector = sunVector(azimuth, altitude);
+  const horizontal = Math.hypot(vector.x, vector.y);
+  if (horizontal < 1e-6 || vector.z <= 0) return corners;
+  const raw = block.height / Math.tan((altitude * Math.PI) / 180);
+  const length = Math.min(Math.max(raw, 0), SHADOW_LIMIT_M);
+  const sx = (-vector.x / horizontal) * length;
+  const sy = (-vector.y / horizontal) * length;
+  const cast = corners.map((corner) => ({ x: corner.x + sx, y: corner.y + sy }));
+  return convexHull([...corners, ...cast]);
+}
+
+function convexHull(points: Point[]): Point[] {
+  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  const unique = sorted.filter(
+    (point, index) =>
+      index === 0 || point.x !== sorted[index - 1]?.x || point.y !== sorted[index - 1]?.y,
+  );
+  if (unique.length <= 2) return unique;
+  const cross = (origin: Point, a: Point, b: Point) =>
+    (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x);
+  const build = (source: Point[]) => {
+    const hull: Point[] = [];
+    for (const point of source) {
+      while (
+        hull.length >= 2 &&
+        cross(hull[hull.length - 2]!, hull[hull.length - 1]!, point) <= 0
+      ) {
+        hull.pop();
+      }
+      hull.push(point);
+    }
+    return hull;
+  };
+  const lower = build(unique);
+  const upper = build([...unique].reverse());
+  lower.pop();
+  upper.pop();
+  return [...lower, ...upper];
+}
+
 export function classifyLight(hours: number): SunLevel {
   if (hours >= 6) return "full-sun";
   if (hours >= 3) return "partial-sun";
   return "shade";
 }
 
-export function bedSun(
-  points: Point[],
-  samples: SunSample[],
-  blocks: ShadeBlock[],
-) {
+export function bedSun(points: Point[], samples: SunSample[], blocks: ShadeBlock[]) {
   const center = centroid(points);
-  const hours = sunlitHours(
-    samples,
-    { x: center.x, y: center.y, z: 0.4 },
-    blocks,
-  );
+  const hours = sunlitHours(samples, { x: center.x, y: center.y, z: 0.4 }, blocks);
   return { hours, light: classifyLight(hours) };
 }

@@ -47,12 +47,7 @@ import {
 import { buildTimeline } from "../../domain/jobs";
 import { getPlant, PLANTS } from "../../domain/plants";
 import { aspectNote, recommendPlants } from "../../domain/recommend";
-import {
-  bedSun,
-  daySamples,
-  midsummerSamples,
-  sunVector,
-} from "../../domain/sun";
+import { bedSun, daySamples, midsummerSamples, sunVector } from "../../domain/sun";
 import {
   MONTH_NAMES,
   PLANT_GROUPS,
@@ -84,7 +79,7 @@ const DRAW_TOOLS: { tool: Tool; label: string; help: string }[] = [
   {
     tool: "select",
     label: "Select",
-    help: "Click a bed to select it, or drag it to move.",
+    help: "Click a bed to select it, or drag it to move. Drag empty ground to slide the plan.",
   },
   {
     tool: "rect",
@@ -183,12 +178,8 @@ function DesignerBody({
 }) {
   const [tool, setTool] = useState<Tool>("select");
   const [plantGroup, setPlantGroup] = useState<PlantGroup>("flower");
-  const [preset, setPreset] = useState<{ width: number; depth: number } | null>(
-    null,
-  );
-  const [shadePreset, setShadePreset] = useState<
-    (typeof SHADE_PRESETS)[number] | null
-  >(null);
+  const [preset, setPreset] = useState<{ width: number; depth: number } | null>(null);
+  const [shadePreset, setShadePreset] = useState<(typeof SHADE_PRESETS)[number] | null>(null);
   const [draft, setDraft] = useState<Point[]>([]);
   const [cursor, setCursor] = useState<Point | null>(null);
   const [rectStart, setRectStart] = useState<Point | null>(null);
@@ -207,29 +198,21 @@ function DesignerBody({
   const adjustRef = useRef<AdjustGesture | null>(null);
   const [adjust, setAdjust] = useState<AdjustPreview | null>(null);
   const [armedPlantId, setArmedPlantId] = useState<string | null>(null);
-  const [selectedBedId, setSelectedBedId] = useState<string | null>(
-    garden.beds[0]?.id ?? null,
-  );
-  const [selectedPlacementId, setSelectedPlacementId] = useState<string | null>(
-    null,
-  );
+  const [selectedBedId, setSelectedBedId] = useState<string | null>(garden.beds[0]?.id ?? null);
+  const [selectedPlacementId, setSelectedPlacementId] = useState<string | null>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [month, setMonth] = useState(new Date().getMonth());
   const [view, setView] = useState<"plan" | "orbit">("plan");
-  const [scale, setScale] = useState<{ metres: number; pixels: number } | null>(
-    null,
+  const [scale, setScale] = useState<{ metres: number; pixels: number } | null>(null);
+  const [bedLabels, setBedLabels] = useState<{ id: string; name: string; x: number; y: number }[]>(
+    [],
   );
-  const [bedLabels, setBedLabels] = useState<
-    { id: string; name: string; x: number; y: number }[]
-  >([]);
   const [handleSpots, setHandleSpots] = useState<{
     turn: { x: number; y: number };
     resize: { x: number; y: number };
     center: { x: number; y: number };
   } | null>(null);
-  const pointerRef = useRef<(clientX: number, clientY: number) => Point | null>(
-    () => null,
-  );
+  const pointerRef = useRef<(clientX: number, clientY: number) => Point | null>(() => null);
   const [menu, setMenu] = useState<ShapeMenu | null>(null);
   const appliedBuildings = useRef(false);
 
@@ -246,12 +229,7 @@ function DesignerBody({
   });
 
   useEffect(() => {
-    if (
-      garden.buildingsLoaded ||
-      appliedBuildings.current ||
-      !buildings.isFetched
-    )
-      return;
+    if (garden.buildingsLoaded || appliedBuildings.current || !buildings.isFetched) return;
     appliedBuildings.current = true;
     const result = buildings.data;
     const buildingError =
@@ -275,32 +253,32 @@ function DesignerBody({
     () => midsummerSamples(garden.site.latitude, garden.site.longitude),
     [garden.site.latitude, garden.site.longitude],
   );
+  const daylight = useMemo(
+    () => daySamples(garden.site.latitude, garden.site.longitude, month, 15),
+    [garden.site.latitude, garden.site.longitude, month],
+  );
   const sunArc = useMemo(
     () =>
-      daySamples(garden.site.latitude, garden.site.longitude, month, 15)
+      daylight
         .filter((sample) => sample.altitude > 5)
         .map((sample) => {
           const vector = sunVector(sample.azimuth, sample.altitude);
           const radius = 18;
-          return [
-            vector.x * radius,
-            Math.max(0.5, vector.z * radius),
-            -vector.y * radius,
-          ] as [number, number, number];
+          return [vector.x * radius, Math.max(0.5, vector.z * radius), -vector.y * radius] as [
+            number,
+            number,
+            number,
+          ];
         }),
-    [garden.site.latitude, garden.site.longitude, month],
+    [daylight],
   );
-  const plantsById = useMemo(
-    () => new Map(PLANTS.map((plant) => [plant.id, plant])),
-    [],
+  const shadeSamples = useMemo(
+    () => daylight.filter((sample, index) => sample.altitude > 8 && index % 2 === 0),
+    [daylight],
   );
-  const activeBed =
-    garden.beds.find((bed) => bed.id === selectedBedId) ??
-    garden.beds[0] ??
-    null;
-  const activeLight = activeBed
-    ? resolvedLight(activeBed, samples, garden.blocks)
-    : null;
+  const plantsById = useMemo(() => new Map(PLANTS.map((plant) => [plant.id, plant])), []);
+  const activeBed = garden.beds.find((bed) => bed.id === selectedBedId) ?? garden.beds[0] ?? null;
+  const activeLight = activeBed ? resolvedLight(activeBed, samples, garden.blocks) : null;
   const recommendations = activeLight
     ? recommendPlants(
         PLANTS.filter((plant) => plant.group === plantGroup),
@@ -310,24 +288,18 @@ function DesignerBody({
       )
     : [];
   const armed = armedPlantId ? getPlant(armedPlantId) : undefined;
-  const selectedBlock =
-    garden.blocks.find((block) => block.id === selectedBlockId) ?? null;
+  const selectedBlock = garden.blocks.find((block) => block.id === selectedBlockId) ?? null;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Backspace" && event.key !== "Delete") return;
-      if (
-        event.target instanceof HTMLInputElement ||
-        event.target instanceof HTMLTextAreaElement
-      )
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
         return;
       event.preventDefault();
       if (selectedPlacementId) {
         update((current) => ({
           ...current,
-          placements: current.placements.filter(
-            (item) => item.id !== selectedPlacementId,
-          ),
+          placements: current.placements.filter((item) => item.id !== selectedPlacementId),
         }));
         setSelectedPlacementId(null);
       } else if (selectedBlockId) {
@@ -340,9 +312,7 @@ function DesignerBody({
         update((current) => ({
           ...current,
           beds: current.beds.filter((item) => item.id !== selectedBedId),
-          placements: current.placements.filter(
-            (item) => item.bedId !== selectedBedId,
-          ),
+          placements: current.placements.filter((item) => item.bedId !== selectedBedId),
         }));
         setSelectedBedId(null);
       }
@@ -356,8 +326,7 @@ function DesignerBody({
     if (!menu) return;
     const close = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Element && target.closest("[data-shape-menu]"))
-        return;
+      if (target instanceof Element && target.closest("[data-shape-menu]")) return;
       setMenu(null);
     };
     const onKey = (event: KeyboardEvent) => {
@@ -603,9 +572,7 @@ function DesignerBody({
     if (phase === "down") {
       const block = blockUnder(raw);
       const bed = bedUnder(raw);
-      const selectedBlock = garden.blocks.find(
-        (item) => item.id === selectedBlockId,
-      );
+      const selectedBlock = garden.blocks.find((item) => item.id === selectedBlockId);
       if (block) {
         const center = { x: block.x, y: block.y };
         if (kind === "scale" && distance(raw, center) < 0.4) {
@@ -652,8 +619,7 @@ function DesignerBody({
         };
         return;
       }
-      const chosenBed =
-        bed ?? garden.beds.find((item) => item.id === selectedBedId);
+      const chosenBed = bed ?? garden.beds.find((item) => item.id === selectedBedId);
       if (!chosenBed) {
         setDrawNote("Select a bed or shade block, then drag it.");
         return;
@@ -700,9 +666,7 @@ function DesignerBody({
       const nextBlock = preview.block;
       update((current) => ({
         ...current,
-        blocks: current.blocks.map((block) =>
-          block.id === nextBlock.id ? nextBlock : block,
-        ),
+        blocks: current.blocks.map((block) => (block.id === nextBlock.id ? nextBlock : block)),
       }));
       return;
     }
@@ -712,9 +676,7 @@ function DesignerBody({
         bed.id === preview.bedId ? { ...bed, points: preview.points } : bed,
       ),
       placements: current.placements.map((item) => {
-        const moved = preview.placements.find(
-          (placement) => placement.id === item.id,
-        );
+        const moved = preview.placements.find((placement) => placement.id === item.id);
         return moved ? { ...item, x: moved.x, y: moved.y } : item;
       }),
     }));
@@ -729,14 +691,9 @@ function DesignerBody({
     return snapLineToOutline(block, garden.boundary, outlineSnapMetres());
   }
 
-  function attachBlock(
-    gesture: AdjustGesture,
-    preview: AdjustPreview,
-  ): AdjustPreview {
+  function attachBlock(gesture: AdjustGesture, preview: AdjustPreview): AdjustPreview {
     if (gesture.target !== "block" || !gesture.baseBlock) return preview;
-    const block = snapAdjustedLine(
-      blockFromCorners(gesture.baseBlock, preview.points),
-    );
+    const block = snapAdjustedLine(blockFromCorners(gesture.baseBlock, preview.points));
     return {
       ...preview,
       block,
@@ -749,10 +706,7 @@ function DesignerBody({
 
   function previewAdjust(gesture: AdjustGesture, raw: Point): AdjustPreview {
     if (gesture.kind === "rotate") {
-      const angle = Math.atan2(
-        raw.y - gesture.center.y,
-        raw.x - gesture.center.x,
-      );
+      const angle = Math.atan2(raw.y - gesture.center.y, raw.x - gesture.center.x);
       const turned = snapAngle(angle - gesture.startAngle);
       const points = rotatePoints(gesture.basePoints, gesture.center, turned);
       return {
@@ -772,18 +726,13 @@ function DesignerBody({
       return {
         bedId: gesture.bedId,
         points: translatePoints(gesture.basePoints, by),
-        placements: movedPlacements(
-          gesture,
-          (point) => translatePoints([point], by)[0],
-        ),
+        placements: movedPlacements(gesture, (point) => translatePoints([point], by)[0]),
         label: formatOffset(by),
         changed: by.x !== 0 || by.y !== 0,
         block: null,
       };
     }
-    const factor = snapScale(
-      distance(raw, gesture.center) / gesture.startDistance,
-    );
+    const factor = snapScale(distance(raw, gesture.center) / gesture.startDistance);
     const points = scalePoints(gesture.basePoints, gesture.center, factor);
     const sides = rectangleSize(points) ?? spanSize(points);
     return {
@@ -834,9 +783,7 @@ function DesignerBody({
     setDraft([]);
     setCursor(null);
     if (!shape) {
-      setDrawNote(
-        "That outline was too small. Draw around the whole bed, then release.",
-      );
+      setDrawNote("That outline was too small. Draw around the whole bed, then release.");
       return;
     }
     addBed(shape);
@@ -893,9 +840,7 @@ function DesignerBody({
     if (!origin) return;
     const dragged = distance(origin, raw);
     const angle =
-      dragged < 0.35
-        ? Math.PI / 2
-        : snapAngle(Math.atan2(raw.y - origin.y, raw.x - origin.x));
+      dragged < 0.35 ? Math.PI / 2 : snapAngle(Math.atan2(raw.y - origin.y, raw.x - origin.x));
     addBed(rotatedRectangle(origin, preset.width, preset.depth, angle));
     placeAnchorRef.current = null;
     setPlaceAnchor(null);
@@ -912,20 +857,9 @@ function DesignerBody({
       placeAnchorRef.current = origin;
       setPlaceAnchor(origin);
       if (presetIsLine(shadePreset)) {
-        const laid = linePlacement(
-          origin,
-          origin,
-          garden.boundary,
-          outlineSnapMetres(),
-        );
+        const laid = linePlacement(origin, origin, garden.boundary, outlineSnapMetres());
         setBlockDraft(
-          madeShade(
-            shadePreset,
-            laid.center,
-            laid.rotation,
-            blockId.current,
-            laid.length,
-          ),
+          madeShade(shadePreset, laid.center, laid.rotation, blockId.current, laid.length),
         );
       } else {
         setBlockDraft(madeShade(shadePreset, origin, 0, blockId.current));
@@ -935,10 +869,7 @@ function DesignerBody({
     const origin = placeAnchorRef.current;
     if (!origin) return;
     const dragged = distance(origin, raw);
-    const rotation =
-      dragged < 0.35
-        ? 0
-        : snapAngle(Math.atan2(raw.y - origin.y, raw.x - origin.x));
+    const rotation = dragged < 0.35 ? 0 : snapAngle(Math.atan2(raw.y - origin.y, raw.x - origin.x));
     const laid = presetIsLine(shadePreset)
       ? linePlacement(origin, raw, garden.boundary, outlineSnapMetres())
       : null;
@@ -946,19 +877,11 @@ function DesignerBody({
     const angle = laid?.rotation ?? rotation;
     const length = laid?.length;
     if (phase === "move") {
-      setBlockDraft(
-        madeShade(shadePreset, center, angle, blockId.current, length),
-      );
+      setBlockDraft(madeShade(shadePreset, center, angle, blockId.current, length));
       setCursor(raw);
       return;
     }
-    const block = madeShade(
-      shadePreset,
-      center,
-      angle,
-      blockId.current,
-      length,
-    );
+    const block = madeShade(shadePreset, center, angle, blockId.current, length);
     update((current) => ({ ...current, blocks: [...current.blocks, block] }));
     setSelectedBlockId(block.id);
     setShadePreset(null);
@@ -978,15 +901,12 @@ function DesignerBody({
   );
   const drawingLabel = adjust?.label ?? drawing.measure?.text ?? null;
   const shownBeds = garden.beds.map((bed) =>
-    adjust && !adjust.block && adjust.bedId === bed.id
-      ? { ...bed, points: adjust.points }
-      : bed,
+    adjust && !adjust.block && adjust.bedId === bed.id ? { ...bed, points: adjust.points } : bed,
   );
   const shownBlocks = garden.blocks.map((block) =>
     adjust?.block && adjust.block.id === block.id ? adjust.block : block,
   );
-  const editingBlock =
-    shownBlocks.find((block) => block.id === selectedBlockId) ?? null;
+  const editingBlock = shownBlocks.find((block) => block.id === selectedBlockId) ?? null;
   const shownPlacements = garden.placements.map((placement) => {
     const moved = adjust?.placements.find((item) => item.id === placement.id);
     return moved ? { ...placement, x: moved.x, y: moved.y } : placement;
@@ -1021,17 +941,14 @@ function DesignerBody({
             </summary>
             <div className="mt-2 space-y-2">
               <p className="text-sm">
-                {SOIL_LABEL[garden.site.soil]} ·{" "}
-                {MOISTURE_LABEL[garden.site.moisture]} ·{" "}
+                {SOIL_LABEL[garden.site.soil]} · {MOISTURE_LABEL[garden.site.moisture]} ·{" "}
                 {PH_LABEL[garden.site.ph]} · {ASPECT_LABEL[garden.site.aspect]}
               </p>
               {garden.site.address ? (
                 <p className="text-sm text-ink/70">{garden.site.address}</p>
               ) : null}
               {garden.site.soilSuggestion ? (
-                <p className="text-xs text-ink/60">
-                  {garden.site.soilSuggestion.label}
-                </p>
+                <p className="text-xs text-ink/60">{garden.site.soilSuggestion.label}</p>
               ) : null}
             </div>
           </details>
@@ -1126,9 +1043,7 @@ function DesignerBody({
                 update((current) => ({
                   ...current,
                   blocks: current.blocks.map((block) =>
-                    block.id === selectedBlock.id
-                      ? { ...block, height }
-                      : block,
+                    block.id === selectedBlock.id ? { ...block, height } : block,
                   ),
                 }));
               }}
@@ -1139,9 +1054,7 @@ function DesignerBody({
               onClick={() => {
                 update((current) => ({
                   ...current,
-                  blocks: current.blocks.filter(
-                    (block) => block.id !== selectedBlock.id,
-                  ),
+                  blocks: current.blocks.filter((block) => block.id !== selectedBlock.id),
                 }));
                 setSelectedBlockId(null);
               }}
@@ -1151,9 +1064,7 @@ function DesignerBody({
           </label>
         ) : null}
         <div className="space-y-2">
-          <p className="text-xs font-medium text-ink/60">
-            Adjust the selection
-          </p>
+          <p className="text-xs font-medium text-ink/60">Adjust the selection</p>
           <div className="flex flex-wrap gap-2">
             <ToolButton current={tool} tool="move" onClick={chooseTool}>
               Move
@@ -1166,16 +1077,14 @@ function DesignerBody({
             </ToolButton>
           </div>
           <p className="text-sm">
-            Drag a bed or shade block, or its Move, Turn, or Size handle.
-            Right-click for copy and delete.
+            Drag a bed or shade block, or its Move, Turn, or Size handle. Right-click for copy and
+            delete.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {BED_PRESETS.map((item) => {
             const armed =
-              tool === "place" &&
-              preset?.width === item.width &&
-              preset.depth === item.depth;
+              tool === "place" && preset?.width === item.width && preset.depth === item.depth;
             return (
               <button
                 key={item.label}
@@ -1188,40 +1097,28 @@ function DesignerBody({
             );
           })}
         </div>
-        {drawingLabel ? (
-          <p className="text-sm font-medium">{drawingLabel}</p>
-        ) : null}
+        {drawingLabel ? <p className="text-sm font-medium">{drawingLabel}</p> : null}
         {tool === "place" && preset ? (
           <p className="text-sm">
-            Click to place a north-south{" "}
-            {formatSize(preset.width, preset.depth)} bed, or drag to aim it. The
-            angle snaps to 5°.
+            Click to place a north-south {formatSize(preset.width, preset.depth)} bed, or drag to
+            aim it. The angle snaps to 5°.
           </p>
         ) : null}
         {tool === "move" ? (
           <div className="text-sm">
-            <p>
-              Drag a bed to move it. The move snaps to half metres, and plants
-              come with it.
-            </p>
+            <p>Drag a bed to move it. The move snaps to half metres, and plants come with it.</p>
             {drawNote ? <p className="mt-2 text-ink/70">{drawNote}</p> : null}
           </div>
         ) : null}
         {tool === "rotate" ? (
           <div className="text-sm">
-            <p>
-              Drag a bed to turn it. The angle snaps to 5°, and plants in the
-              bed turn with it.
-            </p>
+            <p>Drag a bed to turn it. The angle snaps to 5°, and plants in the bed turn with it.</p>
             {drawNote ? <p className="mt-2 text-ink/70">{drawNote}</p> : null}
           </div>
         ) : null}
         {tool === "scale" ? (
           <div className="text-sm">
-            <p>
-              Drag from the edge of a bed. Pull outward to enlarge it, or inward
-              to shrink it.
-            </p>
+            <p>Drag from the edge of a bed. Pull outward to enlarge it, or inward to shrink it.</p>
             {drawNote ? <p className="mt-2 text-ink/70">{drawNote}</p> : null}
           </div>
         ) : null}
@@ -1246,6 +1143,24 @@ function DesignerBody({
           />
           <span className="font-medium">{MONTH_NAMES[month]}</span>
         </label>
+        <label className="flex items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            checked={garden.showShade !== false}
+            onChange={(event) =>
+              update((current) => ({
+                ...current,
+                showShade: event.target.checked,
+              }))
+            }
+          />
+          Show shade
+        </label>
+        {garden.showShade !== false ? (
+          <p className="text-xs text-ink/60">
+            Shadows show where shade falls in the middle of this month.
+          </p>
+        ) : null}
         <div className="flex gap-2">
           <button
             className={view === "plan" ? buttonClass : quietButtonClass}
@@ -1262,6 +1177,11 @@ function DesignerBody({
             3D
           </button>
         </div>
+        {view === "plan" ? (
+          <p className="text-xs leading-snug text-ink/60">
+            Scroll to zoom. Drag empty ground to move around. Double-click to centre the plan.
+          </p>
+        ) : null}
         <div>
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-lg">Beds</h2>
@@ -1281,13 +1201,8 @@ function DesignerBody({
           </div>
           <ul className="mt-2 space-y-2 text-sm">
             {garden.beds.map((bed) => {
-              const points =
-                adjust?.bedId === bed.id ? adjust.points : bed.points;
-              const light = resolvedLight(
-                { ...bed, points },
-                samples,
-                garden.blocks,
-              );
+              const points = adjust?.bedId === bed.id ? adjust.points : bed.points;
+              const light = resolvedLight({ ...bed, points }, samples, garden.blocks);
               return (
                 <li key={bed.id}>
                   <button
@@ -1297,9 +1212,7 @@ function DesignerBody({
                       setSelectedBedId(bed.id);
                       setSelectedBlockId(null);
                     }}
-                    onContextMenu={(event) =>
-                      openMenu(event, { kind: "bed", id: bed.id })
-                    }
+                    onContextMenu={(event) => openMenu(event, { kind: "bed", id: bed.id })}
                   >
                     <span className="flex items-center gap-2 font-medium">
                       <span
@@ -1309,17 +1222,15 @@ function DesignerBody({
                       {bed.name}
                     </span>
                     <span className="block text-ink/70">
-                      {bedSize(points)} · {SUN_LABEL[light.light]} ·{" "}
-                      {light.hours.toFixed(1)} h of midsummer sun
+                      {bedSize(points)} · {SUN_LABEL[light.light]} · {light.hours.toFixed(1)} h of
+                      midsummer sun
                       {bed.lightOverride ? " · override" : ""}
                     </span>
                   </button>
                 </li>
               );
             })}
-            {garden.beds.length === 0 ? (
-              <li className="text-ink/60">No beds yet.</li>
-            ) : null}
+            {garden.beds.length === 0 ? <li className="text-ink/60">No beds yet.</li> : null}
           </ul>
         </div>
         {activeBed ? (
@@ -1336,8 +1247,7 @@ function DesignerBody({
               value={activeBed.lightOverride ?? "calculated"}
               onChange={(event) => {
                 const value = event.target.value;
-                const lightOverride =
-                  value === "calculated" ? null : (value as SunLevel);
+                const lightOverride = value === "calculated" ? null : (value as SunLevel);
                 update((current) => ({
                   ...current,
                   beds: current.beds.map((bed) =>
@@ -1368,19 +1278,16 @@ function DesignerBody({
               : `${jobCount} jobs this year`}
           </Link>
         </p>
-        {garden.attribution ||
-        (garden.boundary && garden.boundary.length >= 3) ? (
+        {garden.attribution || (garden.boundary && garden.boundary.length >= 3) ? (
           <details className="text-xs text-ink/50">
             <summary className="cursor-pointer">Sources</summary>
             {garden.boundary && garden.boundary.length >= 3 ? (
               <p className="mt-1">
-                Property outline from HM Land Registry. It is the indicative
-                freehold extent, not the legal title.
+                Property outline from HM Land Registry. It is the indicative freehold extent, not
+                the legal title.
               </p>
             ) : null}
-            {garden.attribution ? (
-              <p className="mt-1">{garden.attribution}</p>
-            ) : null}
+            {garden.attribution ? <p className="mt-1">{garden.attribution}</p> : null}
           </details>
         ) : null}
       </aside>
@@ -1459,16 +1366,10 @@ function DesignerBody({
           <div className="pointer-events-none absolute bottom-4 left-4 z-10 text-ink">
             <div className="flex items-end">
               <span className="h-2 w-px bg-ink" />
-              <span
-                className="mb-1 h-0.5 bg-ink"
-                style={{ width: scale.pixels }}
-              />
+              <span className="mb-1 h-0.5 bg-ink" style={{ width: scale.pixels }} />
               <span className="h-2 w-px bg-ink" />
             </div>
-            <p
-              className="mt-1 text-center text-xs"
-              style={{ width: scale.pixels }}
-            >
+            <p className="mt-1 text-center text-xs" style={{ width: scale.pixels }}>
               {scale.metres} m
             </p>
           </div>
@@ -1487,23 +1388,17 @@ function DesignerBody({
           draft={draft}
           preview={drawing.preview}
           previewClosed={drawing.closed}
-          measure={
-            adjust
-              ? { text: adjust.label, at: centroid(adjust.points) }
-              : drawing.measure
-          }
+          measure={adjust ? { text: adjust.label, at: centroid(adjust.points) } : drawing.measure}
           blockDraft={blockDraft}
           boundary={garden.boundary ?? null}
           sunArc={sunArc}
+          shadeSamples={garden.showShade === false ? [] : shadeSamples}
           onSurface={handleSurface}
           onSelectPlacement={setSelectedPlacementId}
           showHandles={
             view === "plan" &&
             !armedPlantId &&
-            (tool === "select" ||
-              tool === "rotate" ||
-              tool === "scale" ||
-              tool === "move")
+            (tool === "select" || tool === "rotate" || tool === "scale" || tool === "move")
           }
           onMoveBed={
             tool === "select" && !armedPlantId
@@ -1531,24 +1426,18 @@ function DesignerBody({
             update((current) => ({
               ...current,
               placements: current.placements.map((placement) =>
-                placement.id === id
-                  ? { ...placement, x: point.x, y: point.y }
-                  : placement,
+                placement.id === id ? { ...placement, x: point.x, y: point.y } : placement,
               ),
             }));
           }}
           onScale={(metres, pixels) => setScale({ metres, pixels })}
           onDrop={(id, point) => {
             update((current) => {
-              const bed = current.beds.find((item) =>
-                pointInPolygon(point, item.points),
-              );
+              const bed = current.beds.find((item) => pointInPolygon(point, item.points));
               if (!bed) {
                 return {
                   ...current,
-                  placements: current.placements.filter(
-                    (placement) => placement.id !== id,
-                  ),
+                  placements: current.placements.filter((placement) => placement.id !== id),
                 };
               }
               return {
@@ -1567,9 +1456,7 @@ function DesignerBody({
 
       <aside className="space-y-3 border-t border-line p-4 lg:border-t-0 lg:border-l">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-xl">
-            {activeBed ? `For ${activeBed.name}` : "Plants"}
-          </h2>
+          <h2 className="text-xl">{activeBed ? `For ${activeBed.name}` : "Plants"}</h2>
           <label className="flex items-center gap-2 text-xs">
             <input
               type="checkbox"
@@ -1602,20 +1489,13 @@ function DesignerBody({
           ))}
         </div>
         {!activeBed ? (
-          <p className="text-sm">
-            Draw a bed to see plants that fit its sun and your soil.
-          </p>
+          <p className="text-sm">Draw a bed to see plants that fit its sun and your soil.</p>
         ) : recommendations.length === 0 ? (
-          <p className="text-sm text-ink/60">
-            Nothing in this list suits this bed.
-          </p>
+          <p className="text-sm text-ink/60">Nothing in this list suits this bed.</p>
         ) : null}
         <ul className="max-h-[70vh] space-y-2 overflow-auto">
           {recommendations.map((verdict) => (
-            <li
-              key={verdict.plant.id}
-              className="rounded-md border border-line bg-card p-3"
-            >
+            <li key={verdict.plant.id} className="rounded-md border border-line bg-card p-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <Link
@@ -1664,30 +1544,22 @@ function DesignerBody({
           <div className="space-y-3">
             <h2 className="flex items-baseline justify-between text-lg">
               Planted
-              <span className="text-sm font-normal text-ink/60">
-                {garden.placements.length}
-              </span>
+              <span className="text-sm font-normal text-ink/60">{garden.placements.length}</span>
             </h2>
             {activeBed ? (
               <div>
                 <h3 className="flex items-baseline justify-between text-base">
                   {activeBed.name}
-                  <span className="text-sm font-normal text-ink/60">
-                    {bedPlacements.length}
-                  </span>
+                  <span className="text-sm font-normal text-ink/60">{bedPlacements.length}</span>
                 </h3>
                 {bedGroups.length === 0 ? (
-                  <p className="mt-1 text-sm text-ink/60">
-                    Nothing planted in this bed.
-                  </p>
+                  <p className="mt-1 text-sm text-ink/60">Nothing planted in this bed.</p>
                 ) : (
                   <PlantedGroups
                     groups={bedGroups}
                     month={month}
                     scope={activeBed.name}
-                    onRemove={(plantId) =>
-                      removePlantsOf(plantId, activeBed.id)
-                    }
+                    onRemove={(plantId) => removePlantsOf(plantId, activeBed.id)}
                   />
                 )}
               </div>
@@ -1717,16 +1589,13 @@ function DesignerBody({
           block={garden.blocks.find((block) => block.id === menu.id) ?? null}
           plantName={
             menu.kind === "plant"
-              ? (getPlant(
-                  garden.placements.find((item) => item.id === menu.id)
-                    ?.plantId ?? "",
-                )?.commonName ?? null)
+              ? (getPlant(garden.placements.find((item) => item.id === menu.id)?.plantId ?? "")
+                  ?.commonName ?? null)
               : null
           }
           plantCount={
             menu.kind === "bed"
-              ? garden.placements.filter((item) => item.bedId === menu.id)
-                  .length
+              ? garden.placements.filter((item) => item.bedId === menu.id).length
               : 0
           }
           onRename={(name) => renameBed(menu.id, name)}
@@ -1741,19 +1610,12 @@ function DesignerBody({
     </div>
   );
 
-  function shapeAt(event: {
-    clientX: number;
-    clientY: number;
-    target: EventTarget | null;
-  }) {
+  function shapeAt(event: { clientX: number; clientY: number; target: EventTarget | null }) {
     const label =
       event.target instanceof Element
         ? event.target.closest("button")?.getAttribute("aria-label")?.trim()
         : undefined;
-    if (
-      (label === "Move" || label === "Turn" || label === "Size") &&
-      selectedBedId
-    ) {
+    if ((label === "Move" || label === "Turn" || label === "Size") && selectedBedId) {
       return { kind: "bed" as const, id: selectedBedId };
     }
     const point = pointerRef.current(event.clientX, event.clientY);
@@ -1821,9 +1683,7 @@ function DesignerBody({
     if (!trimmed) return;
     update((current) => ({
       ...current,
-      beds: current.beds.map((bed) =>
-        bed.id === id ? { ...bed, name: trimmed } : bed,
-      ),
+      beds: current.beds.map((bed) => (bed.id === id ? { ...bed, name: trimmed } : bed)),
     }));
   }
 
@@ -1956,18 +1816,10 @@ const BED_COLOURS = [
 ] as const;
 
 function bedColour(color: string | undefined): string {
-  return color && /^#[0-9a-fA-F]{6}$/.test(color)
-    ? color.toLowerCase()
-    : "#a67c52";
+  return color && /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : "#a67c52";
 }
 
-function BedColours({
-  color,
-  onColour,
-}: {
-  color?: string;
-  onColour: (color: string) => void;
-}) {
+function BedColours({ color, onColour }: { color?: string; onColour: (color: string) => void }) {
   const current = bedColour(color);
   return (
     <div>
@@ -2008,9 +1860,7 @@ function groupPlantings(placements: { plantId: string }[]) {
     if (existing) existing.count += 1;
     else groups.set(plant.id, { plant, count: 1 });
   }
-  return [...groups.values()].sort((a, b) =>
-    a.plant.commonName.localeCompare(b.plant.commonName),
-  );
+  return [...groups.values()].sort((a, b) => a.plant.commonName.localeCompare(b.plant.commonName));
 }
 
 function PlantedGroups({
@@ -2030,19 +1880,12 @@ function PlantedGroups({
         const look = plant.months[month];
         const action = count === 1 ? "Remove" : "Remove all";
         return (
-          <li
-            key={plant.id}
-            className="flex items-center justify-between gap-2"
-          >
+          <li key={plant.id} className="flex items-center justify-between gap-2">
             <span>
               {plant.commonName}
               <span className="text-ink/60"> · {count}</span>
               <span className="block text-xs text-ink/60">
-                {look?.flower
-                  ? look.flower
-                  : look?.foliage
-                    ? "In leaf"
-                    : "Dormant"}
+                {look?.flower ? look.flower : look?.foliage ? "In leaf" : "Dormant"}
                 {look?.scent ? " · scented" : ""}
               </span>
             </span>
@@ -2131,11 +1974,7 @@ function ShapeMenu({
           <button className={itemClass} type="button" onClick={onDuplicateBed}>
             Duplicate
           </button>
-          <button
-            className={`${itemClass} text-clay`}
-            type="button"
-            onClick={onDeleteBed}
-          >
+          <button className={`${itemClass} text-clay`} type="button" onClick={onDeleteBed}>
             {plantCount > 0 ? "Delete bed and plants" : "Delete bed"}
           </button>
         </>
@@ -2143,21 +1982,12 @@ function ShapeMenu({
       {menu.kind === "block" && block ? (
         <>
           <p className="px-3 py-1.5 text-xs text-ink/60">
-            {block.label ??
-              (block.source === "osm" ? "Building" : "Shade block")}
+            {block.label ?? (block.source === "osm" ? "Building" : "Shade block")}
           </p>
-          <button
-            className={itemClass}
-            type="button"
-            onClick={onDuplicateBlock}
-          >
+          <button className={itemClass} type="button" onClick={onDuplicateBlock}>
             Duplicate
           </button>
-          <button
-            className={`${itemClass} text-clay`}
-            type="button"
-            onClick={onDeleteBlock}
-          >
+          <button className={`${itemClass} text-clay`} type="button" onClick={onDeleteBlock}>
             Delete block
           </button>
         </>
@@ -2165,11 +1995,7 @@ function ShapeMenu({
       {menu.kind === "plant" && plantName ? (
         <>
           <p className="px-3 py-1.5 text-xs text-ink/60">{plantName}</p>
-          <button
-            className={`${itemClass} text-clay`}
-            type="button"
-            onClick={onRemovePlant}
-          >
+          <button className={`${itemClass} text-clay`} type="button" onClick={onRemovePlant}>
             Remove plant
           </button>
         </>
@@ -2218,16 +2044,9 @@ function BedHandle({
   at: { x: number; y: number };
   kind: "rotate" | "scale" | "move";
   toPoint: { current: (clientX: number, clientY: number) => Point | null };
-  adjust: (
-    kind: "rotate" | "scale" | "move",
-    point: Point,
-    phase: "down" | "move" | "up",
-  ) => void;
+  adjust: (kind: "rotate" | "scale" | "move", point: Point, phase: "down" | "move" | "up") => void;
 }) {
-  function atEvent(
-    event: { clientX: number; clientY: number },
-    phase: "down" | "move" | "up",
-  ) {
+  function atEvent(event: { clientX: number; clientY: number }, phase: "down" | "move" | "up") {
     const point = toPoint.current(event.clientX, event.clientY);
     if (point) adjust(kind, point, phase);
   }
@@ -2325,12 +2144,7 @@ function ToolButton({
       ? buttonClass
       : quietButtonClass;
   return (
-    <button
-      className={className}
-      type="button"
-      title={title}
-      onClick={() => onClick(tool)}
-    >
+    <button className={className} type="button" title={title} onClick={() => onClick(tool)}>
       {compact ? <DrawToolIcon tool={tool} /> : null}
       {children}
     </button>
@@ -2441,8 +2255,7 @@ function drawingPreview(
   }
   if (tool === "angled" && rectStart) {
     if (!edgeEnd) {
-      if (!cursor)
-        return { preview: [rectStart], closed: false, measure: null };
+      if (!cursor) return { preview: [rectStart], closed: false, measure: null };
       const edge = snappedEdge(rectStart, cursor);
       if (!edge) return { preview: [rectStart], closed: false, measure: null };
       return {
@@ -2506,11 +2319,7 @@ function drawingPreview(
         : `Edge ${formatMetres(edge)} m`;
     return { preview, closed: false, measure: { text, at: cursor } };
   }
-  if (
-    tool === "block" &&
-    blockDraft &&
-    (blockDraft.width > 0 || blockDraft.depth > 0)
-  ) {
+  if (tool === "block" && blockDraft && (blockDraft.width > 0 || blockDraft.depth > 0)) {
     const ends = blockDraft.line ? lineEnds(blockDraft) : null;
     return {
       preview: null,

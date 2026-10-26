@@ -289,6 +289,7 @@ function ConfirmSite({
         buildingError: null,
         showUnsuitable: false,
         showBedNames: false,
+        showShade: true,
         boundary: site.boundary,
         attribution: site.attribution,
         blocks: [],
