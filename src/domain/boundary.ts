@@ -19,8 +19,11 @@ export const PLOT_TOO_LARGE =
 export const PLOT_NONE =
   "No registered freehold outline contains this address. Leasehold homes are often missing. Draw the plot yourself.";
 
-export function outlineAttribution(year: number): string {
-  return `This information is subject to Crown copyright and database rights ${year} and is reproduced with the permission of HM Land Registry. The polygons (including the associated geometry, namely x, y co-ordinates) are subject to Crown copyright and database rights ${year} Ordnance Survey 100026316. Address location © OpenStreetMap contributors. https://www.planning.data.gov.uk/dataset/title-boundary`;
+export function outlineAttribution(year: number, simplified = false): string {
+  const survey = simplified
+    ? `The polygons (including the associated geometry, namely x, y co-ordinates) are subject to Crown copyright and database rights ${year} Ordnance Survey 100026316. https://www.planning.data.gov.uk/dataset/title-boundary`
+    : `The polygons are subject to Crown copyright and database rights ${year} Ordnance Survey AC0000851063. https://use-land-property-data.service.gov.uk/datasets/inspire/#conditions`;
+  return `This information is subject to Crown copyright and database rights ${year} and is reproduced with the permission of HM Land Registry. ${survey} Address location © OpenStreetMap contributors.`;
 }
 
 const RESIDENTIAL = new Set(["Private Residential Site", "Communal Residential Site"]);

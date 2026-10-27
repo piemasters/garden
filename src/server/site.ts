@@ -1,7 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { choiceMatchingAddress, isAreaResult } from "../domain/address-match";
-import { outlineAttribution, PLOT_NONE, selectPlotBoundary } from "../domain/boundary";
-import { buildingHeight, footprintBlock, fromLocalMetres, toLocalMetres } from "../domain/geometry";
+import {
+  outlineAttribution,
+  PLOT_NONE,
+  PLOT_TOO_LARGE,
+  selectPlotBoundary,
+} from "../domain/boundary";
+import {
+  buildingHeight,
+  footprintBlock,
+  fromLocalMetres,
+  smallestOutlineAt,
+  toLocalMetres,
+} from "../domain/geometry";
 import type { TitlePlot } from "../domain/titles";
 import { gridToWgs84, wgs84ToGrid } from "../domain/osgb";
 import { describeSoilReading, parseBgsFeatureInfo, soilFromBgs } from "../domain/soil";
@@ -12,6 +23,7 @@ export interface AddressChoice {
   latitude: number;
   longitude: number;
   outline?: Point[];
+  matched?: boolean;
 }
 
 export interface SiteQuery {
@@ -205,6 +217,36 @@ async function locateAddress(
         "That address is not in this postcode, so the plan uses the postcode centre and no property outline.",
     };
   }
+  if (data.selected == null) {
+    const aroundHouse = await plotsNear(
+      result.admin_district ?? "",
+      place.choice.latitude,
+      place.choice.longitude,
+      place.choice.latitude,
+      place.choice.longitude,
+      100,
+      30,
+      "the address",
+    );
+    if (aroundHouse.ok && aroundHouse.choices.length > 0) {
+      const suggested = smallestOutlineAt({ x: 0, y: 0 }, aroundHouse.choices);
+      const choices = aroundHouse.choices.map((choice) =>
+        choice === suggested ? { ...choice, matched: true } : choice,
+      );
+      choices.sort((left, right) => Number(Boolean(right.matched)) - Number(Boolean(left.matched)));
+      return {
+        latitude: place.choice.latitude,
+        longitude: place.choice.longitude,
+        matchedAddress: place.choice.label,
+        boundary: null,
+        boundaryNote: suggested
+          ? `${place.choice.label} is highlighted on the map. Click that plot to confirm it, or choose another if it is wrong.`
+          : `${place.choice.label} is marked on the map. Click its coloured plot.`,
+        attribution: null,
+        choices,
+      };
+    }
+  }
   const imported = await importedSite(result, place.choice, null);
   if (imported.boundary) return imported;
   return chooseNearbyPlot(data.address, result, imported.boundaryNote);
@@ -238,7 +280,7 @@ async function importedSite(
         "HM Land Registry freehold extent. This is the indicative position of the registered property, not the legal title.")
       : outline.reason,
     attribution: outline.boundary
-      ? outlineAttribution(outline.year)
+      ? outlineAttribution(outline.year, outline.simplified)
       : "Address location © OpenStreetMap contributors.",
     choices: null,
   };
@@ -268,38 +310,23 @@ async function chooseNearbyPlot(
     attribution: null,
     choices: null,
   };
-  const { persistentParcelCache, titlesAround } = await import("./titles");
-  const listed = await titlesAround(latitude, longitude, latitude, longitude, 320, 48);
-  if (listed.ok && listed.plots.length > 0) {
-    const choices = choicesFromPlots(listed.plots, latitude, longitude);
-    const matched = choiceMatchingAddress(address, choices);
-    if (matched) return importedSite(result, matched, null);
-    return {
-      ...empty,
-      boundaryNote:
-        "The house is not pinpointed on the free map. Click the map where the house is, then click its coloured plot.",
-      choices,
-    };
-  }
-  if (!persistentParcelCache()) return empty;
-  const grid = wgs84ToGrid(latitude, longitude);
-  const { freeholdNearby } = await import("./parcels");
-  const nearby = await freeholdNearby(
+  const listed = await plotsNear(
     result.admin_district ?? "",
-    grid.easting,
-    grid.northing,
+    latitude,
+    longitude,
+    latitude,
+    longitude,
     320,
     48,
   );
-  if (!nearby.ok || nearby.plots.length === 0) return empty;
-  const choices = outlineChoices(nearby.plots, latitude, longitude);
-  const matched = choiceMatchingAddress(address, choices);
+  if (!listed.ok || listed.choices.length === 0) return empty;
+  const matched = choiceMatchingAddress(address, listed.choices);
   if (matched) return importedSite(result, matched, null);
   return {
     ...empty,
     boundaryNote:
       "The house is not pinpointed on the free map. Click the map where the house is, then click its coloured plot.",
-    choices,
+    choices: listed.choices,
   };
 }
 
@@ -336,8 +363,8 @@ export const lookupPlotsAround = createServerFn({ method: "POST" })
           return { ok: false, error: "The postcode service did not respond. Try the map again." };
         }
         const body = (await response.json()) as { result?: PostcodeResult };
-        const { persistentParcelCache, titlesAround } = await import("./titles");
-        const listed = await titlesAround(
+        const listed = await plotsNear(
+          body.result?.admin_district ?? "",
           data.latitude,
           data.longitude,
           data.originLatitude,
@@ -345,47 +372,64 @@ export const lookupPlotsAround = createServerFn({ method: "POST" })
           180,
           40,
         );
-        if (listed.ok && listed.plots.length > 0) {
-          return {
-            ok: true,
-            choices: choicesFromPlots(listed.plots, data.originLatitude, data.originLongitude),
-          };
-        }
-        if (!persistentParcelCache()) {
-          return {
-            ok: false,
-            error: listed.ok
-              ? "No freehold plots were found there. Click another spot."
-              : listed.reason,
-          };
-        }
-        const district = body.result?.admin_district ?? "";
-        const grid = wgs84ToGrid(data.latitude, data.longitude);
-        const { freeholdNearby } = await import("./parcels");
-        const nearby = await freeholdNearby(district, grid.easting, grid.northing, 180, 40);
-        if (!nearby.ok) return { ok: false, error: nearby.reason };
-        if (nearby.plots.length === 0) {
+        if (!listed.ok) return { ok: false, error: listed.reason };
+        if (listed.choices.length === 0) {
           return { ok: false, error: "No freehold plots were found there. Click another spot." };
         }
-        return {
-          ok: true,
-          choices: outlineChoices(nearby.plots, data.originLatitude, data.originLongitude),
-        };
+        return { ok: true, choices: listed.choices };
       } catch {
         return { ok: false, error: "Property outlines could not be loaded. Try the map again." };
       }
     },
   );
 
+async function plotsNear(
+  adminDistrict: string,
+  latitude: number,
+  longitude: number,
+  originLatitude: number,
+  originLongitude: number,
+  pad: number,
+  limit: number,
+  anchor = "the postcode centre",
+): Promise<{ ok: true; choices: AddressChoice[] } | { ok: false; reason: string }> {
+  const { persistentParcelCache, titlesAround } = await import("./titles");
+  if (persistentParcelCache()) {
+    const grid = wgs84ToGrid(latitude, longitude);
+    const { freeholdNearby } = await import("./parcels");
+    const nearby = await freeholdNearby(adminDistrict, grid.easting, grid.northing, pad, limit);
+    if (nearby.ok) {
+      return {
+        ok: true,
+        choices: outlineChoices(nearby.plots, originLatitude, originLongitude, anchor),
+      };
+    }
+  }
+  const listed = await titlesAround(
+    latitude,
+    longitude,
+    originLatitude,
+    originLongitude,
+    pad,
+    limit,
+  );
+  if (!listed.ok) return listed;
+  return {
+    ok: true,
+    choices: choicesFromPlots(listed.plots, originLatitude, originLongitude, anchor),
+  };
+}
+
 function choicesFromPlots(
   plots: TitlePlot[],
   latitude: number,
   longitude: number,
+  anchor: string,
 ): AddressChoice[] {
   return plots.map((plot) => {
     const geographic = fromLocalMetres({ x: plot.east, y: plot.north }, latitude, longitude);
     return {
-      label: `Plot ${plot.width} × ${plot.depth} m, ${compass(plot.east, plot.north)}`,
+      label: `Plot ${plot.width} × ${plot.depth} m, ${compass(plot.east, plot.north, anchor)}`,
       latitude: geographic.latitude,
       longitude: geographic.longitude,
       outline: plot.ring,
@@ -403,12 +447,13 @@ function outlineChoices(
   }>,
   latitude: number,
   longitude: number,
+  anchor: string,
 ): AddressChoice[] {
   return plots.map((plot) => {
     const geographic = gridToWgs84(plot.easting, plot.northing);
     const local = toLocalMetres(geographic.latitude, geographic.longitude, latitude, longitude);
     return {
-      label: `Plot ${plot.width} × ${plot.depth} m, ${compass(local.x, local.y)}`,
+      label: `Plot ${plot.width} × ${plot.depth} m, ${compass(local.x, local.y, anchor)}`,
       latitude: geographic.latitude,
       longitude: geographic.longitude,
       outline: plot.ring.map(([easting, northing]) => {
@@ -419,9 +464,9 @@ function outlineChoices(
   });
 }
 
-function compass(east: number, north: number): string {
+function compass(east: number, north: number, anchor: string): string {
   const distance = Math.hypot(east, north);
-  if (distance < 12) return "at the postcode centre";
+  if (distance < 12) return `at ${anchor}`;
   const names = [
     "north",
     "north-east",
@@ -433,7 +478,7 @@ function compass(east: number, north: number): string {
     "north-west",
   ];
   const index = Math.round(Math.atan2(east, north) / (Math.PI / 4) + 8) % 8;
-  return `${Math.round(distance)} m ${names[index] ?? "from"} of the postcode centre`;
+  return `${Math.round(distance)} m ${names[index] ?? "from"} of ${anchor}`;
 }
 
 async function searchAddress(
@@ -597,15 +642,14 @@ async function searchPhoton(
 
 function photonAgrees(address: string, label: string): boolean {
   const number = address.match(/^\s*(\d+[a-z]?)/i)?.[1]?.toLowerCase();
-  const words = address
-    .toLowerCase()
-    .replace(/^\s*\d+[a-z]?/, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .split(" ")
-    .filter((word) => word.length > 3);
+  const street = address
+    .replace(/^\s*\d+[a-z]?/i, "")
+    .replace(/[^a-z0-9]+/gi, " ")
+    .trim()
+    .toLowerCase();
   const text = label.toLowerCase();
   if (number && !new RegExp(`\\b${number}\\b`).test(text)) return false;
-  return words.every((word) => text.includes(word));
+  return street.length === 0 || text.includes(street);
 }
 
 function photonLabel(
@@ -627,21 +671,32 @@ async function importFreehold(
   adminDistrict: string,
   latitude: number,
   longitude: number,
-): Promise<{ boundary: Point[] | null; reason: string | null; year: number }> {
+): Promise<{ boundary: Point[] | null; reason: string | null; year: number; simplified: boolean }> {
   const { persistentParcelCache, titleAt } = await import("./titles");
+  if (persistentParcelCache()) {
+    const cached = await importCachedFreehold(adminDistrict, latitude, longitude);
+    if (cached.boundary || cached.reason === PLOT_NONE || cached.reason === PLOT_TOO_LARGE) {
+      return { ...cached, simplified: false };
+    }
+  }
   const titles = await titleAt(latitude, longitude);
   if (titles.ok && titles.rings.length > 0) {
     const outline = selectPlotBoundary(titles.rings, 0, 0, (east, north) => ({
       x: east,
       y: north,
     }));
-    return { boundary: outline.boundary, reason: outline.reason, year: titles.year };
+    return {
+      boundary: outline.boundary,
+      reason: outline.reason,
+      year: titles.year,
+      simplified: true,
+    };
   }
-  if (persistentParcelCache()) return importCachedFreehold(adminDistrict, latitude, longitude);
   return {
     boundary: null,
     reason: titles.ok ? PLOT_NONE : titles.reason,
     year: titles.ok ? titles.year : new Date().getFullYear(),
+    simplified: true,
   };
 }
 
@@ -680,9 +735,11 @@ function addressLabel(displayName: string): string {
     .map((part) => part.trim())
     .filter(Boolean);
   const first = parts[0] ?? displayName;
+  const street = parts[1];
+  const line = street && /^\d+[a-z]?$/i.test(first) ? `${first} ${street}` : first;
   const postcode = parts.find((part) => /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(part));
-  if (!postcode || postcode.toUpperCase() === first.toUpperCase()) return first;
-  return `${first}, ${postcode}`;
+  if (!postcode || postcode.toUpperCase() === line.toUpperCase()) return line;
+  return `${line}, ${postcode}`;
 }
 
 function dedupeChoices(choices: AddressChoice[]): AddressChoice[] {

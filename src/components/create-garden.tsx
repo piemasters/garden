@@ -22,12 +22,7 @@ import {
   SOIL_LABEL,
 } from "../domain/labels";
 import { upsertGarden } from "../lib/gardens";
-import {
-  lookupPlotsAround,
-  lookupSite,
-  type AddressChoice,
-  type SiteLookup,
-} from "../server/site";
+import { lookupPlotsAround, lookupSite, type AddressChoice, type SiteLookup } from "../server/site";
 import { buttonClass, inputClass, quietButtonClass } from "./chrome";
 import { PlotMap } from "./plot-map.tsx";
 
@@ -43,11 +38,8 @@ export function CreateGarden({ onCreated }: { onCreated: () => void }) {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lookup = useMutation({
-    mutationFn: (value: {
-      address: string;
-      postcode: string;
-      selected?: AddressChoice | null;
-    }) => lookupSite({ data: value }),
+    mutationFn: (value: { address: string; postcode: string; selected?: AddressChoice | null }) =>
+      lookupSite({ data: value }),
   });
   const nearbyPlots = useMutation({
     mutationFn: (value: {
@@ -145,30 +137,25 @@ export function CreateGarden({ onCreated }: { onCreated: () => void }) {
                 : null
           }
           onChoose={(choice) => void chooseAddress(choice)}
-          onSearch={(latitude, longitude) =>
-            void searchHere(latitude, longitude)
-          }
+          onSearch={(latitude, longitude) => void searchHere(latitude, longitude)}
+          addressLabel={found.site.matchedAddress}
         />
         <p className="text-sm text-ink/70">Or pick a plot from the list.</p>
         <div className="max-h-48 space-y-2 overflow-y-auto">
           {found.site.choices.map((choice) => (
             <button
               key={`${choice.latitude},${choice.longitude}`}
-              className={`${buttonClass} block w-full text-left`}
+              className={`${buttonClass} block w-full text-left ${choice.matched ? "ring-2 ring-ink ring-offset-2" : ""}`}
               type="button"
               disabled={lookup.isPending || nearbyPlots.isPending}
               onClick={() => void chooseAddress(choice)}
             >
-              {choice.label}
+              {choice.matched ? `Confirm · ${choice.label}` : choice.label}
             </button>
           ))}
         </div>
         {error ? <p className="text-sm text-clay">{error}</p> : null}
-        <button
-          className={quietButtonClass}
-          type="button"
-          onClick={() => setFound(null)}
-        >
+        <button className={quietButtonClass} type="button" onClick={() => setFound(null)}>
           Change address
         </button>
       </div>
@@ -246,11 +233,10 @@ export function CreateGarden({ onCreated }: { onCreated: () => void }) {
         )}
       </form.Field>
       <p className="text-sm text-ink/70">
-        Enter the house and street to import the registered freehold outline.
-        The postcode still places the sun path and suggests a soil from the
-        national map. If the house is not on the free map, click that spot on
-        the aerial photo and then click its plot. You confirm the soil, pH and
-        aspect before anything is filtered.
+        Enter the house and street, then click its coloured plot on the aerial photo. The postcode
+        still places the sun path and suggests a soil from the national map. If the house is not on
+        the free map, click that spot first. You confirm the soil, pH and aspect before anything is
+        filtered.
       </p>
       {error ? <p className="text-sm text-clay">{error}</p> : null}
       <button className={buttonClass} type="submit" disabled={lookup.isPending}>
@@ -333,18 +319,17 @@ function ConfirmSite({
       <p className="rounded-md bg-mist px-3 py-2 text-sm">
         {site.boundary
           ? `Property outline imported (${site.boundary.length} corners). ${site.boundaryNote ?? ""}`
-          : (site.boundaryNote ??
-            "No property outline was imported. Draw the plot yourself.")}
+          : (site.boundaryNote ?? "No property outline was imported. Draw the plot yourself.")}
       </p>
       {site.soilSuggestion ? (
         <p className="rounded-md bg-mist px-3 py-2 text-sm">
-          {site.soilSuggestion.label}. This is a hint from a national map, not a
-          soil test. Change it if you know the bed.
+          {site.soilSuggestion.label}. This is a hint from a national map, not a soil test. Change
+          it if you know the bed.
         </p>
       ) : (
         <p className="rounded-md bg-mist px-3 py-2 text-sm">
-          No soil map reading came back for this point. Choose the soil you
-          have, or the closest match.
+          No soil map reading came back for this point. Choose the soil you have, or the closest
+          match.
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">

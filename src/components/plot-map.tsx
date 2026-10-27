@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
-import {
-  fromLocalMetres,
-  smallestOutlineAt,
-  toLocalMetres,
-} from "../domain/geometry";
+import { fromLocalMetres, smallestOutlineAt, toLocalMetres } from "../domain/geometry";
 import type { AddressChoice } from "../server/site";
 import { buttonClass, quietButtonClass } from "./chrome";
 
@@ -26,8 +22,7 @@ async function loadLeaflet(): Promise<LeafletModule> {
     default?: LeafletModule;
   };
   if (typeof loaded.map === "function") return loaded;
-  if (loaded.default && typeof loaded.default.map === "function")
-    return loaded.default;
+  if (loaded.default && typeof loaded.default.map === "function") return loaded.default;
   return loaded;
 }
 
@@ -39,6 +34,7 @@ export function PlotMap({
   status,
   onChoose,
   onSearch,
+  addressLabel,
 }: {
   choices: AddressChoice[];
   originLatitude: number;
@@ -47,6 +43,7 @@ export function PlotMap({
   status: string | null;
   onChoose: (choice: AddressChoice) => void;
   onSearch: (latitude: number, longitude: number) => void;
+  addressLabel?: string | null;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const layers = useRef<{
@@ -54,13 +51,12 @@ export function PlotMap({
     aerial?: Leaflet.TileLayer;
     streets?: Leaflet.TileLayer;
   }>({});
-  const renderRef = useRef<(next: AddressChoice[], fit: boolean) => void>(
-    () => {},
-  );
+  const renderRef = useRef<(next: AddressChoice[], fit: boolean) => void>(() => {});
   const choicesRef = useRef(choices);
   const onChooseRef = useRef(onChoose);
   const onSearchRef = useRef(onSearch);
   const disabledRef = useRef(disabled);
+  const addressRef = useRef(addressLabel);
   const baseRef = useRef<"aerial" | "streets">("aerial");
   const [base, setBase] = useState<"aerial" | "streets">("aerial");
   const [mapError, setMapError] = useState<string | null>(null);
@@ -68,6 +64,7 @@ export function PlotMap({
   onChooseRef.current = onChoose;
   onSearchRef.current = onSearch;
   disabledRef.current = disabled;
+  addressRef.current = addressLabel;
   baseRef.current = base;
 
   useEffect(() => {
@@ -94,13 +91,10 @@ export function PlotMap({
             maxZoom: 19,
           },
         );
-        const streets = L.tileLayer(
-          "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-          {
-            attribution: "© OpenStreetMap contributors",
-            maxZoom: 19,
-          },
-        );
+        const streets = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "© OpenStreetMap contributors",
+          maxZoom: 19,
+        });
         const plots = L.layerGroup().addTo(view);
         const pin = L.layerGroup().addTo(view);
         layers.current = { map: view, aerial, streets };
@@ -118,23 +112,27 @@ export function PlotMap({
         const render = (next: AddressChoice[], fit: boolean) => {
           plots.clearLayers();
           const positions: Leaflet.LatLngExpression[] = [];
+          let highlighted: Leaflet.Polygon | undefined;
           for (const [index, choice] of next.entries()) {
             const ring = ringFor(choice, originLatitude, originLongitude);
             if (choice.outline && choice.outline.length >= 3) {
+              const fill = FILLS[index % FILLS.length] ?? "#6f8f72";
+              const resting = choice.matched
+                ? { color: "#1c2822", weight: 4, fillColor: "#2c6b4a", fillOpacity: 0.62 }
+                : { color: "#fffaf3", weight: 2, fillColor: fill, fillOpacity: 0.35 };
+              const hovering = choice.matched
+                ? { color: "#1c2822", weight: 5, fillColor: "#2c6b4a", fillOpacity: 0.78 }
+                : { color: "#fffaf3", weight: 3, fillColor: fill, fillOpacity: 0.55 };
               const polygon = L.polygon(ring, {
-                color: "#fffaf3",
-                weight: 2,
-                fillColor: FILLS[index % FILLS.length] ?? "#6f8f72",
-                fillOpacity: 0.35,
+                ...resting,
                 bubblingMouseEvents: false,
               });
-              polygon.bindTooltip(choice.label, { sticky: true });
-              polygon.on("mouseover", () =>
-                polygon.setStyle({ fillOpacity: 0.55, weight: 3 }),
+              polygon.bindTooltip(
+                choice.matched ? `Matches the address. ${choice.label}` : choice.label,
+                { sticky: true },
               );
-              polygon.on("mouseout", () =>
-                polygon.setStyle({ fillOpacity: 0.35, weight: 2 }),
-              );
+              polygon.on("mouseover", () => polygon.setStyle(hovering));
+              polygon.on("mouseout", () => polygon.setStyle(resting));
               polygon.on("click", (event) => {
                 const local = toLocalMetres(
                   event.latlng.lat,
@@ -145,6 +143,7 @@ export function PlotMap({
                 choose(smallestOutlineAt(local, next) ?? choice);
               });
               polygon.addTo(plots);
+              if (choice.matched) highlighted = polygon;
               positions.push(...ring);
               continue;
             }
@@ -160,6 +159,20 @@ export function PlotMap({
             marker.on("click", () => choose(choice));
             marker.addTo(plots);
             positions.push([choice.latitude, choice.longitude]);
+          }
+          highlighted?.bringToFront();
+          const label = addressRef.current;
+          if (highlighted && label) {
+            L.circleMarker([originLatitude, originLongitude], {
+              radius: 6,
+              color: "#fffaf3",
+              weight: 2,
+              fillColor: "#1c2822",
+              fillOpacity: 1,
+              bubblingMouseEvents: false,
+            })
+              .bindTooltip(label, { permanent: true, direction: "top", offset: [0, -6] })
+              .addTo(plots);
           }
           if (fit && positions.length > 0) {
             view.fitBounds(L.latLngBounds(positions), {
@@ -192,16 +205,11 @@ export function PlotMap({
           }).addTo(pin);
           onSearchRef.current(event.latlng.lat, event.latlng.lng);
         });
-        view.getContainer().style.cursor = disabledRef.current
-          ? "wait"
-          : "crosshair";
+        view.getContainer().style.cursor = disabledRef.current ? "wait" : "crosshair";
         frame = requestAnimationFrame(() => view.invalidateSize());
       })
       .catch(() => {
-        if (!disposed)
-          setMapError(
-            "The map could not be loaded. Pick a plot from the list.",
-          );
+        if (!disposed) setMapError("The map could not be loaded. Pick a plot from the list.");
       });
 
     return () => {
@@ -259,14 +267,15 @@ export function PlotMap({
       {status ? <p className="text-sm text-ink/70">{status}</p> : null}
       {mapError ? <p className="text-sm text-clay">{mapError}</p> : null}
       <p className="text-xs text-ink/60">
-        Click empty ground to load the freeholds around that spot, then click a
-        coloured plot to import it.
+        {choices.some((choice) => choice.matched)
+          ? "The dark plot matches the address. Click it to confirm, or click another plot if it is wrong."
+          : "Click empty ground to load the freeholds around that spot, then click a coloured plot to import it."}
       </p>
       <details className="text-xs text-ink/50">
         <summary className="cursor-pointer">Map sources</summary>
         <p className="mt-1">
-          Imagery © Esri — Source: Esri, Maxar, Earthstar Geographics, and the
-          GIS User Community. Streets © OpenStreetMap contributors.
+          Imagery © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community.
+          Streets © OpenStreetMap contributors.
         </p>
       </details>
     </div>
