@@ -2,6 +2,7 @@ import { HeadContent, Link, Scripts, createRootRouteWithContext } from "@tanstac
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { ReactNode } from "react";
+import { UnitsProvider } from "../components/units";
 
 import { AppHeader } from "../components/chrome";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
@@ -57,7 +58,7 @@ function RootDocument({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body suppressHydrationWarning>
-        {children}
+        <UnitsProvider>{children}</UnitsProvider>
         <TanStackDevtools
           config={{ position: "bottom-right" }}
           plugins={[

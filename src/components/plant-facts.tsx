@@ -4,10 +4,12 @@ import { GROUP_LABEL, KIND_LABEL, SUN_LABEL } from "../domain/labels";
 import { SEASONS, seasonLook } from "../domain/plants";
 import { MONTH_NAMES, type Plant } from "../domain/types";
 import { formatJobDate } from "../domain/jobs";
+import { useUnits } from "./units";
 
 export function PlantFacts({ plant }: { plant: Plant }) {
-  const height = metres(plant.heightM);
-  const spread = metres(plant.spreadM);
+  const { range } = useUnits();
+  const height = range(plant.heightM);
+  const spread = range(plant.spreadM);
   return (
     <article className="mx-auto max-w-3xl space-y-8">
       <header>
@@ -145,9 +147,4 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="text-right">{value}</span>
     </p>
   );
-}
-
-function metres(range: [number, number]): string {
-  const [min, max] = range;
-  return min === max ? `${min} m` : `${min}–${max} m`;
 }

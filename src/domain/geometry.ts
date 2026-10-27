@@ -582,9 +582,12 @@ export function finishedStroke(points: Point[]): Point[] | null {
   return simplified;
 }
 
-export function scaleLength(worldWidth: number): number {
+export function scaleLength(worldWidth: number, unit: "m" | "ft" = "m"): number {
   const target = worldWidth * 0.22;
-  const steps = [1, 2, 5, 10, 20, 50];
+  const steps =
+    unit === "ft"
+      ? [1, 2, 5, 10, 20, 50, 100, 200].map((feet) => feet * 0.3048)
+      : [1, 2, 5, 10, 20, 50];
   let best = 1;
   for (const step of steps) {
     if (

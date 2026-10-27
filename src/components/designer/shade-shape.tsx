@@ -26,10 +26,11 @@ export function ShadeBody({
 }
 
 function ShadeModel({ block, size }: { block: ShadeBlock; size: Size }) {
-  if (block.label === "Tree") return <TreeShape {...size} />;
-  if (block.label === "Hedge") return <HedgeShape {...size} />;
-  if (block.label === "Fence") return <FenceShape {...size} />;
-  if (block.label === "Garage") {
+  const shape = block.label?.replace(/ copy(?: \d+)?$/, "");
+  if (shape === "Tree") return <TreeShape {...size} />;
+  if (shape === "Hedge") return <HedgeShape {...size} />;
+  if (shape === "Fence") return <FenceShape {...size} />;
+  if (shape === "Garage") {
     return (
       <BuildingShape
         {...size}
@@ -42,7 +43,7 @@ function ShadeModel({ block, size }: { block: ShadeBlock; size: Size }) {
       />
     );
   }
-  if (block.label === "Shed") {
+  if (shape === "Shed") {
     return (
       <BuildingShape
         {...size}
@@ -55,7 +56,7 @@ function ShadeModel({ block, size }: { block: ShadeBlock; size: Size }) {
       />
     );
   }
-  if (block.label === "House" || block.source === "osm") {
+  if (shape === "House" || block.source === "osm") {
     return (
       <BuildingShape
         {...size}

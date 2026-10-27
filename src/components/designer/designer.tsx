@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   angledRectangle,
   blockCorners,
@@ -9,12 +9,8 @@ import {
   distance,
   fillPoints,
   finishedStroke,
-  formatSpacing,
   formatBearing,
-  formatMetres,
-  formatOffset,
   lineEnds,
-  formatSize,
   formatTurn,
   pointInBlock,
   pointInPolygon,
@@ -58,9 +54,18 @@ import {
   type ShadeBlock,
   type SunLevel,
 } from "../../domain/types";
+import { formatLength, formatLengthLabel, formatSizeIn, type LengthUnit } from "../../domain/units";
+import {
+  BUILTIN_BED_PRESETS,
+  addBedPreset,
+  loadBedPresets,
+  removeBedPreset,
+  type BedPreset,
+} from "../../lib/bed-presets";
 import { useGarden } from "../../lib/use-garden";
 import { fetchBuildings } from "../../server/site";
 import { buttonClass, quietButtonClass } from "../chrome";
+import { formatEntry, useUnits } from "../units";
 import { GardenCanvas } from "./garden-canvas";
 
 type Tool =
@@ -75,12 +80,13 @@ type Tool =
   | "scale"
   | "move";
 
-const DRAW_TOOLS: { tool: Tool; label: string; help: string }[] = [
-  {
-    tool: "select",
-    label: "Select",
-    help: "Click a bed to select it, or drag it to move. Drag empty ground to slide the plan.",
-  },
+const SELECT_TOOL = {
+  tool: "select" as const,
+  label: "Select",
+  help: "Click a bed to select it, or drag it to move. Drag empty ground to slide the plan.",
+};
+
+const BED_TOOLS: { tool: Tool; label: string; help: string }[] = [
   {
     tool: "rect",
     label: "Rectangle",
@@ -101,12 +107,13 @@ const DRAW_TOOLS: { tool: Tool; label: string; help: string }[] = [
     label: "Outline",
     help: "Click each corner, then the first corner again to close the bed.",
   },
-  {
-    tool: "block",
-    label: "Shade",
-    help: "Drag a wall, fence, or building. It casts shade on the beds.",
-  },
 ];
+
+const CUSTOM_SHADE = {
+  tool: "block" as const,
+  label: "Custom",
+  help: "Drag a wall, fence, or building. It casts shade on the beds.",
+};
 
 type ShapeMenu = {
   x: number;
@@ -137,12 +144,6 @@ type AdjustGesture = {
   baseBlock: ShadeBlock | null;
   preview: AdjustPreview | null;
 };
-
-const BED_PRESETS = [
-  { width: 2, depth: 2, label: "2 × 2 m" },
-  { width: 2, depth: 4, label: "2 × 4 m" },
-  { width: 4, depth: 2, label: "4 × 2 m" },
-] as const;
 
 const SHADE_PRESETS = [
   { label: "House", width: 8, depth: 6, height: 6 },
@@ -176,7 +177,13 @@ function DesignerBody({
   garden: Garden;
   update: (recipe: (current: Garden) => Garden) => void;
 }) {
+  const units = useUnits();
   const [tool, setTool] = useState<Tool>("select");
+  const [customPresets, setCustomPresets] = useState<BedPreset[]>([]);
+  const [presetWidth, setPresetWidth] = useState("");
+  const [presetDepth, setPresetDepth] = useState("");
+  const [presetError, setPresetError] = useState<string | null>(null);
+  const shownUnit = useRef(units.unit);
   const [plantGroup, setPlantGroup] = useState<PlantGroup>("flower");
   const [preset, setPreset] = useState<{ width: number; depth: number } | null>(null);
   const [shadePreset, setShadePreset] = useState<(typeof SHADE_PRESETS)[number] | null>(null);
@@ -289,6 +296,9 @@ function DesignerBody({
     : [];
   const armed = armedPlantId ? getPlant(armedPlantId) : undefined;
   const selectedBlock = garden.blocks.find((block) => block.id === selectedBlockId) ?? null;
+  const bedIsSelected =
+    selectedBlockId === null && garden.beds.some((bed) => bed.id === selectedBedId);
+  const selectionReady = selectedBlock !== null || bedIsSelected;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -361,6 +371,71 @@ function DesignerBody({
     setPreset(null);
     setShadePreset(null);
     resetGesture();
+  }
+
+  useEffect(() => {
+    setCustomPresets(loadBedPresets());
+  }, []);
+
+  useEffect(() => {
+    if (shownUnit.current === units.unit) return;
+    const previous = shownUnit.current;
+    shownUnit.current = units.unit;
+    setPresetWidth((value) => formatEntry(value, previous, units.unit));
+    setPresetDepth((value) => formatEntry(value, previous, units.unit));
+  }, [units.unit]);
+
+  function addCustomPreset(event: FormEvent) {
+    event.preventDefault();
+    const width = Number(presetWidth);
+    const depth = Number(presetDepth);
+    if (!Number.isFinite(width) || !Number.isFinite(depth) || width <= 0 || depth <= 0) {
+      setPresetError("Enter a width and a depth.");
+      return;
+    }
+    const widthM = units.toMetres(width);
+    const depthM = units.toMetres(depth);
+    if (widthM < 0.5 || depthM < 0.5) {
+      setPresetError(`Use at least ${units.length(0.5)} on each side.`);
+      return;
+    }
+    const next = addBedPreset({ widthM, depthM });
+    if (!next) {
+      setPresetError("That size is already a preset.");
+      return;
+    }
+    setCustomPresets(next);
+    setPresetWidth("");
+    setPresetDepth("");
+    setPresetError(null);
+  }
+
+  function deleteCustomPreset(item: BedPreset) {
+    setCustomPresets(removeBedPreset(item.id));
+    if (
+      preset &&
+      Math.abs(preset.width - item.widthM) < 0.05 &&
+      Math.abs(preset.depth - item.depthM) < 0.05
+    ) {
+      setPreset(null);
+      if (tool === "place") setTool("select");
+    }
+  }
+
+  function duplicateSelection() {
+    if (selectedBlockId) {
+      duplicateBlock(selectedBlockId);
+      return;
+    }
+    if (selectedBedId) duplicateBed(selectedBedId);
+  }
+
+  function removeSelection() {
+    if (selectedBlockId) {
+      removeBlock(selectedBlockId);
+      return;
+    }
+    if (selectedBedId) removeBed(selectedBedId);
   }
 
   function armPreset(width: number, depth: number) {
@@ -699,7 +774,7 @@ function DesignerBody({
       block,
       label:
         gesture.kind === "scale" && block.line
-          ? `${formatMetres(block.width)} m long`
+          ? `${units.length(block.width)} long`
           : preview.label,
     };
   }
@@ -727,7 +802,7 @@ function DesignerBody({
         bedId: gesture.bedId,
         points: translatePoints(gesture.basePoints, by),
         placements: movedPlacements(gesture, (point) => translatePoints([point], by)[0]),
-        label: formatOffset(by),
+        label: units.move(by),
         changed: by.x !== 0 || by.y !== 0,
         block: null,
       };
@@ -742,7 +817,7 @@ function DesignerBody({
         gesture,
         (point) => scalePoints([point], gesture.center, factor)[0],
       ),
-      label: `${formatSize(sides.width, sides.depth)} · ${Math.round(factor * 100)}%`,
+      label: `${units.size(sides.width, sides.depth)} · ${Math.round(factor * 100)}%`,
       changed: factor !== 1,
       block: null,
     };
@@ -898,6 +973,7 @@ function DesignerBody({
     edgeEnd,
     placeAnchor,
     blockDraft,
+    units.unit,
   );
   const drawingLabel = adjust?.label ?? drawing.measure?.text ?? null;
   const shownBeds = garden.beds.map((bed) =>
@@ -954,9 +1030,71 @@ function DesignerBody({
           </details>
         </div>
         <div className="space-y-1">
-          <p className="text-xs font-medium text-ink/60">Draw</p>
           <div className="flex flex-wrap gap-1">
-            {DRAW_TOOLS.map((item) => (
+            <ToolButton
+              compact
+              current={tool}
+              tool={SELECT_TOOL.tool}
+              title={SELECT_TOOL.help}
+              onClick={chooseTool}
+            >
+              {SELECT_TOOL.label}
+            </ToolButton>
+            <button
+              className="inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              disabled={!selectionReady}
+              title="Copy the selected bed or shade area and place it beside the original."
+              onClick={duplicateSelection}
+            >
+              <DuplicateIcon />
+              Duplicate
+            </button>
+            <ToolButton compact current={tool} tool="move" onClick={chooseTool}>
+              Move
+            </ToolButton>
+            <ToolButton compact current={tool} tool="rotate" onClick={chooseTool}>
+              Rotate
+            </ToolButton>
+            <ToolButton compact current={tool} tool="scale" onClick={chooseTool}>
+              Scale
+            </ToolButton>
+            <button
+              className="inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-clay hover:border-clay disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              disabled={!selectionReady}
+              title="Remove the selected bed or shade area."
+              onClick={removeSelection}
+            >
+              Remove
+            </button>
+          </div>
+          {tool === "select" ? (
+            <p className="text-xs leading-snug text-ink/70">{SELECT_TOOL.help}</p>
+          ) : null}
+          {tool === "move" ? (
+            <p className="text-xs leading-snug text-ink/70">
+              Drag a bed to move it. The move snaps to {units.length(0.5)}, and plants come with it.
+              {drawNote ? ` ${drawNote}` : ""}
+            </p>
+          ) : null}
+          {tool === "rotate" ? (
+            <p className="text-xs leading-snug text-ink/70">
+              Drag a bed to turn it. The angle snaps to 5°, and plants in the bed turn with it.
+              {drawNote ? ` ${drawNote}` : ""}
+            </p>
+          ) : null}
+          {tool === "scale" ? (
+            <p className="text-xs leading-snug text-ink/70">
+              Drag from the edge of a bed. Pull outward to enlarge it, or inward to shrink it.
+              {drawNote ? ` ${drawNote}` : ""}
+            </p>
+          ) : null}
+        </div>
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-ink/60">Create Beds</p>
+          <div className="flex flex-wrap gap-1">
+            {BED_TOOLS.map((item) => (
               <ToolButton
                 key={item.tool}
                 compact
@@ -969,17 +1107,11 @@ function DesignerBody({
               </ToolButton>
             ))}
           </div>
-          {shadePreset ? (
+          {BED_TOOLS.some((item) => item.tool === tool) ? (
             <p className="text-xs leading-snug text-ink/70">
-              {presetIsLine(shadePreset)
-                ? garden.boundary && garden.boundary.length >= 3
-                  ? `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Near the property outline it snaps to that line. Scaling changes its length, not its width.`
-                  : `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Scaling changes its length, not its width.`
-                : `Click to place a ${shadePreset.label.toLowerCase()}, or drag to aim its long side.`}
-            </p>
-          ) : DRAW_TOOLS.some((item) => item.tool === tool) ? (
-            <p className="text-xs leading-snug text-ink/70">
-              {DRAW_TOOLS.find((item) => item.tool === tool)?.help}
+              {tool === "rect"
+                ? `Drag from one corner to the other. Corners snap to ${units.length(0.5)}.`
+                : BED_TOOLS.find((item) => item.tool === tool)?.help}
             </p>
           ) : null}
           {tool === "freeform" && drawNote ? (
@@ -1000,8 +1132,73 @@ function DesignerBody({
             </button>
           ) : null}
         </div>
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-ink/60">Bed Presets</p>
+          <div className="flex flex-wrap gap-1">
+            {[...BUILTIN_BED_PRESETS, ...customPresets].map((item) => {
+              const armed =
+                tool === "place" &&
+                preset !== null &&
+                Math.abs(preset.width - item.widthM) < 0.05 &&
+                Math.abs(preset.depth - item.depthM) < 0.05;
+              const custom = !BUILTIN_BED_PRESETS.some((builtin) => builtin.id === item.id);
+              return (
+                <span key={item.id} className="inline-flex items-center">
+                  <button
+                    className={
+                      armed
+                        ? "min-h-8 rounded-full bg-leaf px-2 py-1 text-[11px] text-white"
+                        : "min-h-8 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf"
+                    }
+                    type="button"
+                    onClick={() => armPreset(item.widthM, item.depthM)}
+                  >
+                    {units.size(item.widthM, item.depthM)}
+                  </button>
+                  {custom ? (
+                    <button
+                      className="ml-0.5 min-h-8 px-1 text-xs text-ink/50 hover:text-ink"
+                      type="button"
+                      aria-label={`Remove ${units.size(item.widthM, item.depthM)} preset`}
+                      onClick={() => deleteCustomPreset(item)}
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </span>
+              );
+            })}
+          </div>
+          {tool === "place" && preset ? (
+            <p className="text-xs leading-snug text-ink/70">
+              Click to place a north-south {units.size(preset.width, preset.depth)} bed, or drag to
+              aim it. The angle snaps to 5°.
+            </p>
+          ) : null}
+          <form className="flex flex-wrap items-end gap-1" onSubmit={addCustomPreset}>
+            <PresetSizeField
+              label="Width"
+              unit={units.unit}
+              value={presetWidth}
+              onChange={setPresetWidth}
+            />
+            <PresetSizeField
+              label="Depth"
+              unit={units.unit}
+              value={presetDepth}
+              onChange={setPresetDepth}
+            />
+            <button
+              className="self-end rounded-full border border-line bg-card px-3 py-1 text-sm text-ink hover:border-leaf"
+              type="submit"
+            >
+              Add
+            </button>
+          </form>
+          {presetError ? <p className="text-xs text-clay">{presetError}</p> : null}
+        </div>
         <div className="space-y-1">
-          <p className="text-xs font-medium text-ink/60">Shade presets</p>
+          <p className="text-xs font-medium text-ink/60">Create Shade Areas</p>
           <div className="flex flex-wrap gap-1">
             {SHADE_PRESETS.map((item) => {
               const armed = shadePreset?.label === item.label;
@@ -1020,16 +1217,39 @@ function DesignerBody({
                 </button>
               );
             })}
+            <button
+              className={
+                tool === "block" && !shadePreset
+                  ? "min-h-8 rounded-full bg-leaf px-2 py-1 text-[11px] text-white"
+                  : "min-h-8 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf"
+              }
+              type="button"
+              title={CUSTOM_SHADE.help}
+              onClick={() => chooseTool(CUSTOM_SHADE.tool)}
+            >
+              {CUSTOM_SHADE.label}
+            </button>
           </div>
+          {shadePreset ? (
+            <p className="text-xs leading-snug text-ink/70">
+              {presetIsLine(shadePreset)
+                ? garden.boundary && garden.boundary.length >= 3
+                  ? `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Near the property outline it snaps to that line. Scaling changes its length, not its width.`
+                  : `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Scaling changes its length, not its width.`
+                : `Click to place a ${shadePreset.label.toLowerCase()}, or drag to aim its long side.`}
+            </p>
+          ) : tool === "block" ? (
+            <p className="text-xs leading-snug text-ink/70">{CUSTOM_SHADE.help}</p>
+          ) : null}
         </div>
         {selectedBlock ? (
           <label className="block text-sm">
             {selectedBlock.label ?? "Shade"} ·{" "}
             {selectedBlock.line
-              ? `${formatMetres(selectedBlock.width)} m long`
-              : formatSize(selectedBlock.width, selectedBlock.depth)}
+              ? `${units.length(selectedBlock.width)} long`
+              : units.size(selectedBlock.width, selectedBlock.depth)}
             <span className="mt-2 block text-xs text-ink/60">
-              Height {selectedBlock.height.toFixed(1)} m
+              Height {units.length(selectedBlock.height)}
             </span>
             <input
               className="mt-1 w-full"
@@ -1048,80 +1268,9 @@ function DesignerBody({
                 }));
               }}
             />
-            <button
-              className="mt-2 text-xs text-clay"
-              type="button"
-              onClick={() => {
-                update((current) => ({
-                  ...current,
-                  blocks: current.blocks.filter((block) => block.id !== selectedBlock.id),
-                }));
-                setSelectedBlockId(null);
-              }}
-            >
-              Remove
-            </button>
           </label>
         ) : null}
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-ink/60">Adjust the selection</p>
-          <div className="flex flex-wrap gap-2">
-            <ToolButton current={tool} tool="move" onClick={chooseTool}>
-              Move
-            </ToolButton>
-            <ToolButton current={tool} tool="rotate" onClick={chooseTool}>
-              Rotate
-            </ToolButton>
-            <ToolButton current={tool} tool="scale" onClick={chooseTool}>
-              Scale
-            </ToolButton>
-          </div>
-          <p className="text-sm">
-            Drag a bed or shade block, or its Move, Turn, or Size handle. Right-click for copy and
-            delete.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {BED_PRESETS.map((item) => {
-            const armed =
-              tool === "place" && preset?.width === item.width && preset.depth === item.depth;
-            return (
-              <button
-                key={item.label}
-                className={armed ? buttonClass : quietButtonClass}
-                type="button"
-                onClick={() => armPreset(item.width, item.depth)}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
         {drawingLabel ? <p className="text-sm font-medium">{drawingLabel}</p> : null}
-        {tool === "place" && preset ? (
-          <p className="text-sm">
-            Click to place a north-south {formatSize(preset.width, preset.depth)} bed, or drag to
-            aim it. The angle snaps to 5°.
-          </p>
-        ) : null}
-        {tool === "move" ? (
-          <div className="text-sm">
-            <p>Drag a bed to move it. The move snaps to half metres, and plants come with it.</p>
-            {drawNote ? <p className="mt-2 text-ink/70">{drawNote}</p> : null}
-          </div>
-        ) : null}
-        {tool === "rotate" ? (
-          <div className="text-sm">
-            <p>Drag a bed to turn it. The angle snaps to 5°, and plants in the bed turn with it.</p>
-            {drawNote ? <p className="mt-2 text-ink/70">{drawNote}</p> : null}
-          </div>
-        ) : null}
-        {tool === "scale" ? (
-          <div className="text-sm">
-            <p>Drag from the edge of a bed. Pull outward to enlarge it, or inward to shrink it.</p>
-            {drawNote ? <p className="mt-2 text-ink/70">{drawNote}</p> : null}
-          </div>
-        ) : null}
         <p className="text-xs text-ink/60">
           {!garden.buildingsLoaded
             ? "Loading nearby buildings…"
@@ -1222,8 +1371,8 @@ function DesignerBody({
                       {bed.name}
                     </span>
                     <span className="block text-ink/70">
-                      {bedSize(points)} · {SUN_LABEL[light.light]} · {light.hours.toFixed(1)} h of
-                      midsummer sun
+                      {bedSize(points, units.unit)} · {SUN_LABEL[light.light]} ·{" "}
+                      {light.hours.toFixed(1)} h of midsummer sun
                       {bed.lightOverride ? " · override" : ""}
                     </span>
                   </button>
@@ -1370,7 +1519,7 @@ function DesignerBody({
               <span className="h-2 w-px bg-ink" />
             </div>
             <p className="mt-1 text-center text-xs" style={{ width: scale.pixels }}>
-              {scale.metres} m
+              {units.length(scale.metres)}
             </p>
           </div>
         ) : null}
@@ -1521,8 +1670,8 @@ function DesignerBody({
                     <button
                       className={`${quietButtonClass} px-3`}
                       type="button"
-                      title={`${formatSpacing(plantingSpacing(verdict.plant.spreadM))} apart`}
-                      aria-label={`Fill ${activeBed.name} with ${verdict.plant.commonName}, ${formatSpacing(plantingSpacing(verdict.plant.spreadM))} apart`}
+                      title={`${units.spacing(plantingSpacing(verdict.plant.spreadM))} apart`}
+                      aria-label={`Fill ${activeBed.name} with ${verdict.plant.commonName}, ${units.spacing(plantingSpacing(verdict.plant.spreadM))} apart`}
                       onClick={() => fillBed(verdict.plant)}
                     >
                       Fill
@@ -1765,6 +1914,9 @@ function DesignerBody({
       ],
     }));
     setSelectedBlockId(copyId);
+    setSelectedBedId(null);
+    setSelectedPlacementId(null);
+    setTool("select");
     setMenu(null);
   }
 
@@ -2120,6 +2272,25 @@ function HandleIcon({ kind }: { kind: "rotate" | "scale" | "move" }) {
   );
 }
 
+function DuplicateIcon() {
+  const stroke = {
+    viewBox: "0 0 16 16",
+    className: "h-3.5 w-3.5 shrink-0",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.5,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  return (
+    <svg {...stroke}>
+      <rect x="2.25" y="4.75" width="7.5" height="7.5" rx="0.75" />
+      <path d="M6.25 4.75V3.5A1.25 1.25 0 0 1 7.5 2.25h5A1.25 1.25 0 0 1 13.75 3.5v5A1.25 1.25 0 0 1 12.5 9.75H11" />
+    </svg>
+  );
+}
+
 function ToolButton({
   current,
   tool,
@@ -2219,11 +2390,36 @@ function resolvedLight(
   return { ...stats, light: bed.lightOverride ?? stats.light };
 }
 
-function bedSize(points: Point[]): string {
+function PresetSizeField({
+  label,
+  unit,
+  value,
+  onChange,
+}: {
+  label: string;
+  unit: LengthUnit;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex flex-col text-[11px] text-ink/60">
+      {label} ({unit})
+      <input
+        className="mt-1 w-16 rounded-md border border-line bg-card px-2 py-1 text-sm text-ink outline-none focus:border-leaf"
+        inputMode="decimal"
+        value={value}
+        aria-label={`${label} in ${unit === "ft" ? "feet" : "metres"}`}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function bedSize(points: Point[], unit: LengthUnit): string {
   const sides = rectangleSize(points);
-  if (sides) return formatSize(sides.width, sides.depth);
+  if (sides) return formatSizeIn(sides.width, sides.depth, unit);
   const size = spanSize(points);
-  return formatSize(size.width, size.depth);
+  return formatSizeIn(size.width, size.depth, unit);
 }
 
 function drawingPreview(
@@ -2235,11 +2431,14 @@ function drawingPreview(
   edgeEnd: Point | null,
   placeAnchor: Point | null,
   blockDraft: ShadeBlock | null,
+  unit: LengthUnit,
 ): {
   preview: Point[] | null;
   closed: boolean;
   measure: { text: string; at: Point } | null;
 } {
+  const sizeLabel = (width: number, depth: number) => formatSizeIn(width, depth, unit);
+  const lengthLabel = (metres: number) => formatLengthLabel(metres, unit);
   if (tool === "place" && preset && cursor) {
     const origin = placeAnchor ?? snapPoint(cursor);
     const angle = presetAngle(placeAnchor, cursor);
@@ -2248,7 +2447,7 @@ function drawingPreview(
       preview,
       closed: true,
       measure: {
-        text: `${formatSize(preset.width, preset.depth)} · ${formatBearing(angle)}`,
+        text: `${sizeLabel(preset.width, preset.depth)} · ${formatBearing(angle)}`,
         at: centroid(preview),
       },
     };
@@ -2262,7 +2461,7 @@ function drawingPreview(
         preview: [rectStart, edge.end],
         closed: false,
         measure: {
-          text: `${formatMetres(edge.length)} m · ${formatBearing(edge.angle)}`,
+          text: `${lengthLabel(edge.length)} · ${formatBearing(edge.angle)}`,
           at: edge.end,
         },
       };
@@ -2273,7 +2472,9 @@ function drawingPreview(
         preview: [rectStart, edgeEnd],
         closed: false,
         measure: {
-          text: `${formatMetres(distance(rectStart, edgeEnd))} m · ${formatBearing(Math.atan2(edgeEnd.y - rectStart.y, edgeEnd.x - rectStart.x))}`,
+          text: `${lengthLabel(distance(rectStart, edgeEnd))} · ${formatBearing(
+            Math.atan2(edgeEnd.y - rectStart.y, edgeEnd.x - rectStart.x),
+          )}`,
           at: edgeEnd,
         },
       };
@@ -2282,7 +2483,9 @@ function drawingPreview(
       preview: rect.points,
       closed: true,
       measure: {
-        text: `${formatMetres(rect.depth)} × ${formatMetres(rect.width)} m · ${formatBearing(rect.angle)}`,
+        text: `${formatLength(rect.depth, unit)} × ${formatLength(rect.width, unit)} ${unit} · ${formatBearing(
+          rect.angle,
+        )}`,
         at: centroid(rect.points),
       },
     };
@@ -2293,7 +2496,7 @@ function drawingPreview(
     return {
       preview: draft,
       closed: false,
-      measure: { text: formatSize(size.width, size.depth), at },
+      measure: { text: sizeLabel(size.width, size.depth), at },
     };
   }
   if (tool === "rect" && rectStart && cursor) {
@@ -2303,7 +2506,7 @@ function drawingPreview(
       preview,
       closed: true,
       measure: {
-        text: formatSize(size.width, size.depth),
+        text: sizeLabel(size.width, size.depth),
         at: centroid(preview),
       },
     };
@@ -2315,8 +2518,8 @@ function drawingPreview(
     const size = spanSize(preview);
     const text =
       draft.length >= 2
-        ? `${formatSize(size.width, size.depth)} · edge ${formatMetres(edge)} m`
-        : `Edge ${formatMetres(edge)} m`;
+        ? `${sizeLabel(size.width, size.depth)} · edge ${lengthLabel(edge)}`
+        : `Edge ${lengthLabel(edge)}`;
     return { preview, closed: false, measure: { text, at: cursor } };
   }
   if (tool === "block" && blockDraft && (blockDraft.width > 0 || blockDraft.depth > 0)) {
@@ -2326,8 +2529,8 @@ function drawingPreview(
       closed: false,
       measure: {
         text: blockDraft.line
-          ? `${formatMetres(blockDraft.width)} m long`
-          : formatSize(blockDraft.width, blockDraft.depth),
+          ? `${lengthLabel(blockDraft.width)} long`
+          : sizeLabel(blockDraft.width, blockDraft.depth),
         at: ends?.[1] ?? { x: blockDraft.x, y: blockDraft.y },
       },
     };

@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useUnits } from "./units";
 
 export function AppHeader({ gardenId }: { gardenId?: string }) {
   return (
@@ -7,6 +8,7 @@ export function AppHeader({ gardenId }: { gardenId?: string }) {
         Garden
       </Link>
       <nav className="flex flex-wrap items-center gap-4 text-sm">
+        <UnitToggle />
         <Link to="/" className="hover:text-leaf">
           Gardens
         </Link>
@@ -25,6 +27,33 @@ export function AppHeader({ gardenId }: { gardenId?: string }) {
         ) : null}
       </nav>
     </header>
+  );
+}
+
+function UnitToggle() {
+  const { unit, setUnit } = useUnits();
+  return (
+    <div
+      className="flex overflow-hidden rounded-full border border-line text-xs"
+      role="group"
+      aria-label="Units"
+    >
+      {(["m", "ft"] as const).map((option) => (
+        <button
+          key={option}
+          className={
+            unit === option
+              ? "bg-leaf px-2.5 py-1 text-white"
+              : "px-2.5 py-1 text-ink hover:text-leaf"
+          }
+          type="button"
+          aria-pressed={unit === option}
+          onClick={() => setUnit(option)}
+        >
+          {option}
+        </button>
+      ))}
+    </div>
   );
 }
 

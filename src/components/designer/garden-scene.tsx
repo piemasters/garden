@@ -13,6 +13,7 @@ import { plotMetres } from "../../domain/boundary";
 import { adjustHandles, centroid, lineEnds, scaleLength } from "../../domain/geometry";
 import { shadowFootprint, type SunSample } from "../../domain/sun";
 import type { Bed, Placement, Plant, Point, ShadeBlock } from "../../domain/types";
+import { useUnits } from "../units";
 import { ShadeBody } from "./shade-shape";
 
 const PLAN_CAMERA_POSITION: [number, number, number] = [0, 40, 0];
@@ -817,12 +818,13 @@ function MeasureLabel({ text, at }: { text: string; at: Point }) {
 
 function PlanScale({ onScale }: { onScale?: (metres: number, pixels: number) => void }) {
   const { camera, size } = useThree();
+  const { unit } = useUnits();
   const last = useRef("");
   useFrame(() => {
     if (!(camera instanceof THREE.OrthographicCamera) || !onScale) return;
     const worldWidth = (camera.right - camera.left) / camera.zoom;
     if (!Number.isFinite(worldWidth) || worldWidth <= 0) return;
-    const metres = scaleLength(worldWidth);
+    const metres = scaleLength(worldWidth, unit);
     const pixels = (metres / worldWidth) * size.width;
     const key = `${metres}:${Math.round(pixels)}`;
     if (key === last.current) return;
@@ -833,7 +835,8 @@ function PlanScale({ onScale }: { onScale?: (metres: number, pixels: number) => 
 }
 
 function GroundScale({ metres }: { metres: number }) {
-  const length = metres >= 40 ? 10 : 5;
+  const { unit, length: lengthLabel } = useUnits();
+  const metresLong = unit === "ft" ? 10 * 0.3048 : metres >= 40 ? 10 : 5;
   const x = -metres / 2 + 1.5;
   const z = metres / 2 - 1.6;
   return (
@@ -841,13 +844,15 @@ function GroundScale({ metres }: { metres: number }) {
       <Line
         points={[
           [0, 0, 0],
-          [length, 0, 0],
+          [metresLong, 0, 0],
         ]}
         color="#1c2822"
         lineWidth={2}
       />
-      <Html position={[length / 2, 0, -0.8]} center style={{ pointerEvents: "none" }}>
-        <span className="rounded bg-paper/90 px-1.5 py-0.5 text-xs text-ink">{length} m</span>
+      <Html position={[metresLong / 2, 0, -0.8]} center style={{ pointerEvents: "none" }}>
+        <span className="rounded bg-paper/90 px-1.5 py-0.5 text-xs text-ink">
+          {lengthLabel(metresLong)}
+        </span>
       </Html>
     </group>
   );
