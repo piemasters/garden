@@ -38,7 +38,6 @@ function ShadeModel({ block, size }: { block: ShadeBlock; size: Size }) {
         roof="#5e6568"
         door="#3e4348"
         rise={Math.min(0.45, size.height * 0.22)}
-        porch={Math.min(0.7, size.depth * 0.22)}
         doorWidth={Math.min(size.width * 0.72, size.width - 0.3)}
       />
     );
@@ -51,7 +50,6 @@ function ShadeModel({ block, size }: { block: ShadeBlock; size: Size }) {
         roof="#3e5344"
         door="#5c4030"
         rise={size.height * 0.42}
-        porch={Math.min(0.55, size.depth * 0.24)}
         doorWidth={Math.min(0.85, size.width * 0.38)}
       />
     );
@@ -64,7 +62,6 @@ function ShadeModel({ block, size }: { block: ShadeBlock; size: Size }) {
         roof={block.source === "osm" ? "#7a736c" : "#5c5148"}
         door="#3d4a3a"
         rise={size.height * 0.4}
-        porch={Math.min(1.15, size.depth * 0.2)}
         doorWidth={Math.min(1.15, Math.max(0.7, size.width * 0.16))}
         chimney={size.width >= 4 && size.height >= 3}
       />
@@ -90,7 +87,6 @@ function BuildingShape({
   roof,
   door,
   rise,
-  porch,
   doorWidth,
   chimney = false,
 }: Size & {
@@ -98,37 +94,25 @@ function BuildingShape({
   roof: string;
   door: string;
   rise: number;
-  porch: number;
   doorWidth: number;
   chimney?: boolean;
 }) {
   const roofRise = Math.min(Math.max(rise, 0.25), height * 0.62);
   const wallHeight = Math.max(height - roofRise, height * 0.35);
   const actualRise = height - wallHeight;
-  const front = Math.min(porch, depth * 0.35);
-  const roofDepth = Math.max(depth - front, 0.3);
-  const roofZ = -(depth - roofDepth) / 2;
   return (
     <group>
       <mesh position={[0, wallHeight / 2, 0]} raycast={() => null}>
         <boxGeometry args={[width * 0.98, wallHeight, depth * 0.98]} />
         <meshStandardMaterial color={wall} roughness={0.9} />
       </mesh>
-      <group position={[0, wallHeight, roofZ]}>
-        <Gable width={width} depth={roofDepth} rise={actualRise} color={roof} />
+      <group position={[0, wallHeight, 0]}>
+        <Gable width={width} depth={depth} rise={actualRise} color={roof} />
         <mesh position={[0, actualRise, 0]} raycast={() => null}>
           <boxGeometry args={[width * 1.02, 0.1, 0.16]} />
           <meshStandardMaterial color={roof} roughness={0.8} />
         </mesh>
       </group>
-      <mesh
-        position={[0, wallHeight + 0.04, depth / 2 - front / 2]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        raycast={() => null}
-      >
-        <planeGeometry args={[doorWidth, Math.max(front * 0.72, 0.25)]} />
-        <meshStandardMaterial color={door} roughness={0.7} />
-      </mesh>
       <mesh
         position={[0, wallHeight * 0.42, depth / 2 + 0.03]}
         raycast={() => null}
@@ -141,7 +125,7 @@ function BuildingShape({
           position={[
             width * 0.28,
             wallHeight + actualRise * 0.72,
-            roofZ - roofDepth * 0.12,
+            -depth * 0.12,
           ]}
           raycast={() => null}
         >
