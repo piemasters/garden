@@ -4,19 +4,18 @@ export const PH_LEVELS = ["acid", "neutral", "alkaline"] as const;
 export const SUN_LEVELS = ["full-sun", "partial-sun", "shade"] as const;
 export const ASPECTS = ["north", "east", "south", "west"] as const;
 export const EXPOSURES = ["sheltered", "exposed"] as const;
-export const HARDINESS = [
-  "H1a",
-  "H1b",
-  "H1c",
-  "H2",
-  "H3",
-  "H4",
-  "H5",
-  "H6",
-  "H7",
-] as const;
+export const HARDINESS = ["H1a", "H1b", "H1c", "H2", "H3", "H4", "H5", "H6", "H7"] as const;
 export const PLANT_KINDS = ["plant", "bulb", "seed"] as const;
 export const PLANT_GROUPS = ["flower", "vegetable", "fruit"] as const;
+export const GROUND_SURFACES = [
+  "grass",
+  "concrete",
+  "paving",
+  "gravel",
+  "decking",
+  "soil",
+  "bark",
+] as const;
 export const HABITS = ["bulb", "clump", "shrub", "tree", "annual"] as const;
 
 export type SoilType = (typeof SOIL_TYPES)[number];
@@ -28,6 +27,7 @@ export type Exposure = (typeof EXPOSURES)[number];
 export type Hardiness = (typeof HARDINESS)[number];
 export type PlantKind = (typeof PLANT_KINDS)[number];
 export type PlantGroup = (typeof PLANT_GROUPS)[number];
+export type GroundSurface = (typeof GROUND_SURFACES)[number];
 export type Habit = (typeof HABITS)[number];
 export type JobShift = "spring" | "autumn" | "none";
 
@@ -101,8 +101,10 @@ export interface Bed {
   name: string;
   points: Point[];
   lightOverride: SunLevel | null;
-  /** Fill colour as #rrggbb. Missing means the default soil brown. */
+  /** Fill colour as #rrggbb. Missing means the default soil brown. Ignored when `surface` is set. */
   color?: string;
+  /** Material fill. When set, it replaces the flat colour. */
+  surface?: GroundSurface;
 }
 
 export interface Placement {
@@ -148,6 +150,8 @@ export interface Garden {
   showShade?: boolean;
   /** Tilted ground in the 3D view. Missing means shown. */
   showSlope?: boolean;
+  /** Surface inside the property outline. Missing means grass. */
+  surface?: GroundSurface;
   boundary: Point[] | null;
   attribution: string | null;
 }

@@ -278,6 +278,7 @@ function ConfirmSite({
         showBedNames: false,
         showShade: true,
         showSlope: true,
+        surface: "grass",
         boundary: site.boundary,
         attribution: site.attribution,
         blocks: [],

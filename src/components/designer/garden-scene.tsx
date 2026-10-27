@@ -13,7 +13,16 @@ import { plotMetres } from "../../domain/boundary";
 import { blockCorners, centroid, lineEnds, scaleLength } from "../../domain/geometry";
 import { slopeGradient } from "../../domain/slope";
 import { shadowFootprint, type SunSample } from "../../domain/sun";
-import type { Bed, GroundSlope, Placement, Plant, Point, ShadeBlock } from "../../domain/types";
+import type {
+  Bed,
+  GroundSlope,
+  GroundSurface,
+  Placement,
+  Plant,
+  Point,
+  ShadeBlock,
+} from "../../domain/types";
+import { SURFACE_COLOR, bedSurface } from "../../domain/surface";
 import { useUnits } from "../units";
 import { ShadeBody } from "./shade-shape";
 
@@ -55,6 +64,7 @@ export interface SceneProps {
   measure: { text: string; at: Point } | null;
   blockDraft: ShadeBlock | null;
   boundary: Point[] | null;
+  surface: GroundSurface;
   slope?: GroundSlope;
   sunArc: Array<[number, number, number]>;
   shadeSamples: SunSample[];
@@ -78,6 +88,7 @@ type Pixel = { x: number; y: number };
 
 export function GardenScene(props: SceneProps) {
   const metres = plotMetres(props.boundary);
+  const outline = plotOutline(props.boundary);
   const orbit = 12 * (metres / 32);
   const groundTilt = useMemo(() => tiltForSlope(props.slope), [props.slope]);
   const shadowSlope = props.view === "orbit" && props.slope ? slopeGradient(props.slope) : null;
@@ -147,6 +158,8 @@ export function GardenScene(props: SceneProps) {
         <OrbitGround
           metres={metres}
           tilt={groundTilt}
+          boundary={props.boundary}
+          surface={props.surface}
           tool={props.tool}
           onSurface={props.onSurface}
         />
@@ -155,8 +168,9 @@ export function GardenScene(props: SceneProps) {
         <>
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} raycast={() => null}>
             <planeGeometry args={[metres + 16, metres + 16]} />
-            <meshStandardMaterial color="#d5e3c8" />
+            <GroundCoat boundary={props.boundary} surface={props.surface} repeat={metres + 16} />
           </mesh>
+          {outline ? <PlotFill points={outline} surface={props.surface} /> : null}
           <PlanGround
             metres={metres}
             tool={props.tool}
@@ -677,10 +691,23 @@ function BedMesh({
     });
     shape.closePath();
     const next = new THREE.ShapeGeometry(shape);
+    const position = next.getAttribute("position");
+    if (position instanceof THREE.BufferAttribute) {
+      const uv = new Float32Array(position.count * 2);
+      for (let index = 0; index < position.count; index += 1) {
+        uv[index * 2] = position.getX(index);
+        uv[index * 2 + 1] = position.getY(index);
+      }
+      next.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+    }
     layOnSlope(next, slope);
     return next;
   }, [bed.points, slope]);
   useEffect(() => () => geometry.dispose(), [geometry]);
+  const surface = bedSurface(bed.surface);
+  const map = useMemo(() => (surface ? surfaceTexture(surface, 1) : null), [surface]);
+  useEffect(() => () => map?.dispose(), [map]);
+  const color = surface ? bedFill(SURFACE_COLOR[surface], selected) : bedFill(bed.color, selected);
   return (
     <mesh
       geometry={geometry}
@@ -721,7 +748,12 @@ function BedMesh({
         window.addEventListener("pointerup", up);
       }}
     >
-      <meshStandardMaterial color={bedFill(bed.color, selected)} />
+      <meshStandardMaterial
+        key={surface ?? "colour"}
+        color={color}
+        map={map}
+        roughness={surface ? SURFACE_ROUGHNESS[surface] : 1}
+      />
     </mesh>
   );
 }
@@ -1104,18 +1136,189 @@ function layOnSlope(geometry: THREE.BufferGeometry, slope: { east: number; north
   geometry.computeBoundingSphere();
 }
 
+const OUTSIDE_GROUND = "#d5e3c8";
+
+const SURFACE_ROUGHNESS: Record<GroundSurface, number> = {
+  grass: 1,
+  concrete: 0.9,
+  paving: 0.72,
+  gravel: 1,
+  decking: 0.78,
+  soil: 1,
+  bark: 0.95,
+};
+
+function plotOutline(boundary: Point[] | null): Point[] | null {
+  return boundary && boundary.length >= 3 ? boundary : null;
+}
+
+/** Pale surround when the outline is filled. Grass with no outline keeps the original ground. */
+function openGroundColor(boundary: Point[] | null, surface: GroundSurface): string {
+  if (plotOutline(boundary) || surface === "grass") return OUTSIDE_GROUND;
+  return SURFACE_COLOR[surface];
+}
+
+function PlotFill({ points, surface }: { points: Point[]; surface: GroundSurface }) {
+  const geometry = useMemo(() => {
+    const shape = new THREE.Shape();
+    counterClockwise(points).forEach((point, index) => {
+      if (index === 0) shape.moveTo(point.x, point.y);
+      else shape.lineTo(point.x, point.y);
+    });
+    shape.closePath();
+    const next = new THREE.ShapeGeometry(shape);
+    const position = next.getAttribute("position");
+    if (position instanceof THREE.BufferAttribute) {
+      const uv = new Float32Array(position.count * 2);
+      for (let index = 0; index < position.count; index += 1) {
+        uv[index * 2] = position.getX(index);
+        uv[index * 2 + 1] = position.getY(index);
+      }
+      next.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+    }
+    return next;
+  }, [points]);
+  const map = useMemo(() => surfaceTexture(surface, 1), [surface]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => () => map.dispose(), [map]);
+  return (
+    <mesh
+      geometry={geometry}
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, 0.02, 0]}
+      raycast={() => null}
+    >
+      <meshStandardMaterial
+        color={SURFACE_COLOR[surface]}
+        map={map}
+        roughness={SURFACE_ROUGHNESS[surface]}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
+  );
+}
+
+function GroundCoat({
+  boundary,
+  surface,
+  repeat,
+}: {
+  boundary: Point[] | null;
+  surface: GroundSurface;
+  repeat: number;
+}) {
+  const textured = !plotOutline(boundary) && surface !== "grass";
+  const map = useMemo(
+    () => (textured ? surfaceTexture(surface, repeat) : null),
+    [textured, surface, repeat],
+  );
+  useEffect(() => () => map?.dispose(), [map]);
+  return (
+    <meshStandardMaterial
+      color={openGroundColor(boundary, surface)}
+      map={map}
+      roughness={textured ? SURFACE_ROUGHNESS[surface] : 1}
+    />
+  );
+}
+
+function counterClockwise(points: Point[]): Point[] {
+  let sum = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
+    if (!current || !next) continue;
+    sum += current.x * next.y - next.x * current.y;
+  }
+  return sum < 0 ? [...points].reverse() : points;
+}
+
+/** One metre of surface pattern. UVs are in metres, so the texture repeats once per metre. */
+function surfaceTexture(surface: GroundSurface, repeat: number): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext("2d");
+  if (context) drawSurface(context, surface);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(repeat, repeat);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  return texture;
+}
+
+function drawSurface(context: CanvasRenderingContext2D, surface: GroundSurface) {
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, 128, 128);
+  if (surface === "grass") {
+    for (let index = 0; index < 90; index += 1) {
+      context.fillStyle = `rgba(20, 50, 20, ${0.08 + Math.random() * 0.16})`;
+      context.fillRect(Math.random() * 128, Math.random() * 128, 2, 7);
+    }
+    return;
+  }
+  if (surface === "concrete") {
+    for (let index = 0; index < 140; index += 1) {
+      context.fillStyle = `rgba(40, 40, 40, ${0.04 + Math.random() * 0.08})`;
+      context.fillRect(Math.random() * 128, Math.random() * 128, 2, 2);
+    }
+    return;
+  }
+  if (surface === "paving") {
+    context.strokeStyle = "rgba(40, 44, 48, 0.45)";
+    context.lineWidth = 4;
+    context.beginPath();
+    context.moveTo(0, 64);
+    context.lineTo(128, 64);
+    context.moveTo(64, 0);
+    context.lineTo(64, 128);
+    context.stroke();
+    return;
+  }
+  if (surface === "gravel" || surface === "soil" || surface === "bark") {
+    const count = surface === "bark" ? 28 : 46;
+    for (let index = 0; index < count; index += 1) {
+      context.fillStyle = `rgba(30, 24, 18, ${0.12 + Math.random() * 0.28})`;
+      context.beginPath();
+      context.ellipse(
+        Math.random() * 128,
+        Math.random() * 128,
+        3 + Math.random() * (surface === "bark" ? 10 : 6),
+        2 + Math.random() * 4,
+        Math.random() * Math.PI,
+        0,
+        Math.PI * 2,
+      );
+      context.fill();
+    }
+    return;
+  }
+  const board = 18;
+  for (let y = 0; y < 128; y += board) {
+    context.fillStyle = "rgba(40, 24, 12, 0.35)";
+    context.fillRect(0, y, 128, 3);
+  }
+}
+
 function OrbitGround({
   metres,
   tilt,
+  boundary,
+  surface,
   tool,
   onSurface,
 }: {
   metres: number;
   tilt: THREE.Quaternion | null;
+  boundary: Point[] | null;
+  surface: GroundSurface;
   tool: SceneProps["tool"];
   onSurface: SceneProps["onSurface"];
 }) {
-  const surface = (
+  const outline = plotOutline(boundary);
+  const surfaceMesh = (
     <mesh
       rotation={[-Math.PI / 2, 0, 0]}
       onPointerDown={(event) => {
@@ -1140,9 +1343,10 @@ function OrbitGround({
       }}
     >
       <planeGeometry args={[metres + 16, metres + 16]} />
-      <meshStandardMaterial color="#d5e3c8" />
+      <GroundCoat boundary={boundary} surface={surface} repeat={metres + 16} />
     </mesh>
   );
+  const fill = outline ? <PlotFill points={outline} surface={surface} /> : null;
   if (!tilt) {
     return (
       <>
@@ -1151,16 +1355,18 @@ function OrbitGround({
           position={[0, 0.01, 0]}
           raycast={() => null}
         />
-        {surface}
+        {surfaceMesh}
+        {fill}
       </>
     );
   }
   return (
     <group quaternion={tilt}>
-      {surface}
+      {surfaceMesh}
+      {fill}
       <gridHelper
         args={[metres, metres, "#8ea184", "#d7e3cf"]}
-        position={[0, 0.02, 0]}
+        position={[0, 0.012, 0]}
         raycast={() => null}
       />
     </group>

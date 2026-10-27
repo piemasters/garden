@@ -44,12 +44,15 @@ import { buildTimeline } from "../../domain/jobs";
 import { getPlant, PLANTS } from "../../domain/plants";
 import { aspectNote, recommendPlants } from "../../domain/recommend";
 import { describeSlope } from "../../domain/slope";
+import { SURFACE_COLOR, SURFACE_LABEL, bedSurface, groundSurface } from "../../domain/surface";
 import { bedSun, daySamples, midsummerSamples, sunVector } from "../../domain/sun";
 import {
   MONTH_NAMES,
   PLANT_GROUPS,
   SUN_LEVELS,
+  GROUND_SURFACES,
   type Garden,
+  type GroundSurface,
   type PlantGroup,
   type Point,
   type ShadeBlock,
@@ -121,6 +124,8 @@ type ShapeMenu = {
   y: number;
   kind: "bed" | "block" | "plant";
   id: string;
+  /** Colour and material, shown from the bed settings button. */
+  fills?: boolean;
 };
 
 type AdjustPreview = {
@@ -302,10 +307,6 @@ function DesignerBody({
   const selectedBlock = garden.blocks.find((block) => block.id === selectedBlockId) ?? null;
   const bedIsSelected =
     selectedBlockId === null && garden.beds.some((bed) => bed.id === selectedBedId);
-  const selectedBed = bedIsSelected
-    ? (garden.beds.find((bed) => bed.id === selectedBedId) ?? null)
-    : null;
-  const selectedLight = selectedBed ? resolvedLight(selectedBed, samples, garden.blocks) : null;
   const selectionReady = selectedBlock !== null || bedIsSelected;
 
   useEffect(() => {
@@ -1025,7 +1026,7 @@ function DesignerBody({
               </p>
               {slopeText ? <p className="text-sm text-ink/70">{slopeText}</p> : null}
             </summary>
-            <div className="mt-2 space-y-2">
+            <div className="mt-2 space-y-3">
               <p className="text-sm">
                 {SOIL_LABEL[garden.site.soil]} · {MOISTURE_LABEL[garden.site.moisture]} ·{" "}
                 {PH_LABEL[garden.site.ph]} · {ASPECT_LABEL[garden.site.aspect]}
@@ -1035,6 +1036,66 @@ function DesignerBody({
               ) : null}
               {garden.site.soilSuggestion ? (
                 <p className="text-xs text-ink/60">{garden.site.soilSuggestion.label}</p>
+              ) : null}
+              <label className="block text-sm">
+                Month
+                <input
+                  className="mt-1 w-full"
+                  type="range"
+                  min={0}
+                  max={11}
+                  value={month}
+                  onChange={(event) => setMonth(Number(event.target.value))}
+                />
+                <span className="font-medium">{MONTH_NAMES[month]}</span>
+              </label>
+              <GroundChoices
+                surface={groundSurface(garden.surface)}
+                hasOutline={Boolean(garden.boundary && garden.boundary.length >= 3)}
+                onSurface={(surface) =>
+                  update((current) => ({
+                    ...current,
+                    surface,
+                  }))
+                }
+              />
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                <label className="flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={garden.showShade !== false}
+                    onChange={(event) =>
+                      update((current) => ({
+                        ...current,
+                        showShade: event.target.checked,
+                      }))
+                    }
+                  />
+                  Show shade
+                </label>
+                <label className="flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={garden.showSlope !== false}
+                    onChange={(event) =>
+                      update((current) => ({
+                        ...current,
+                        showSlope: event.target.checked,
+                      }))
+                    }
+                  />
+                  Show slope
+                </label>
+              </div>
+              {garden.showShade !== false ? (
+                <p className="text-xs text-ink/60">
+                  Shadows show where shade falls in the middle of this month.
+                </p>
+              ) : null}
+              {view === "plan" ? (
+                <p className="text-xs leading-snug text-ink/60">
+                  Scroll to zoom. Drag empty ground to move around. Double-click to centre the plan.
+                </p>
               ) : null}
             </div>
           </details>
@@ -1117,40 +1178,6 @@ function DesignerBody({
               </div>
             ) : null}
           </div>
-          {selectedBed ? (
-            <BedColours
-              color={selectedBed.color}
-              onColour={(color) => setBedColour(selectedBed.id, color)}
-            />
-          ) : null}
-          {selectedBed && selectedLight ? (
-            <label className="block text-sm">
-              Light for {selectedBed.name}
-              <select
-                className="mt-1 w-full rounded-md border border-line bg-card px-2 py-2"
-                value={selectedBed.lightOverride ?? "calculated"}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  const lightOverride = value === "calculated" ? null : (value as SunLevel);
-                  update((current) => ({
-                    ...current,
-                    beds: current.beds.map((bed) =>
-                      bed.id === selectedBed.id ? { ...bed, lightOverride } : bed,
-                    ),
-                  }));
-                }}
-              >
-                <option value="calculated">
-                  Use the sun calculation ({SUN_LABEL[selectedLight.light]})
-                </option>
-                {SUN_LEVELS.map((level) => (
-                  <option key={level} value={level}>
-                    Override: {SUN_LABEL[level]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
           {selectedBlock ? (
             <label className="block text-sm">
               {selectedBlock.label ?? "Shade"} ·{" "}
@@ -1367,56 +1394,6 @@ function DesignerBody({
                     ? "Grey blocks are OpenStreetMap buildings. Heights are often a guess. Delete any that are wrong."
                     : "No building outlines were added for this point. You can draw shade blocks yourself."}
             </p>
-            <label className="block text-sm">
-              Month
-              <input
-                className="mt-1 w-full"
-                type="range"
-                min={0}
-                max={11}
-                value={month}
-                onChange={(event) => setMonth(Number(event.target.value))}
-              />
-              <span className="font-medium">{MONTH_NAMES[month]}</span>
-            </label>
-            <div className="flex flex-wrap gap-x-4 gap-y-1">
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={garden.showShade !== false}
-                  onChange={(event) =>
-                    update((current) => ({
-                      ...current,
-                      showShade: event.target.checked,
-                    }))
-                  }
-                />
-                Show shade
-              </label>
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={garden.showSlope !== false}
-                  onChange={(event) =>
-                    update((current) => ({
-                      ...current,
-                      showSlope: event.target.checked,
-                    }))
-                  }
-                />
-                Show slope
-              </label>
-            </div>
-            {garden.showShade !== false ? (
-              <p className="text-xs text-ink/60">
-                Shadows show where shade falls in the middle of this month.
-              </p>
-            ) : null}
-            {view === "plan" ? (
-              <p className="text-xs leading-snug text-ink/60">
-                Scroll to zoom. Drag empty ground to move around. Double-click to centre the plan.
-              </p>
-            ) : null}
           </div>
         ) : null}
         {panel === "beds" ? (
@@ -1456,7 +1433,7 @@ function DesignerBody({
                         <span className="flex items-center gap-2 font-medium">
                           <span
                             className="inline-block h-3 w-3 shrink-0 rounded-full border border-line"
-                            style={{ background: bedColour(bed.color) }}
+                            style={{ background: bedSwatch(bed) }}
                           />
                           {bed.name}
                         </span>
@@ -1484,7 +1461,7 @@ function DesignerBody({
                               clientY: rect.bottom + 4,
                               preventDefault() {},
                             },
-                            { kind: "bed", id: bed.id },
+                            { kind: "bed", id: bed.id, fills: true },
                           );
                         }}
                       >
@@ -1757,6 +1734,7 @@ function DesignerBody({
           measure={adjust ? { text: adjust.label, at: centroid(adjust.points) } : drawing.measure}
           blockDraft={blockDraft}
           boundary={garden.boundary ?? null}
+          surface={groundSurface(garden.surface)}
           slope={garden.showSlope === false ? undefined : garden.site.slope}
           sunArc={sunArc}
           shadeSamples={garden.showShade === false ? [] : shadeSamples}
@@ -1842,8 +1820,14 @@ function DesignerBody({
               ? garden.placements.filter((item) => item.bedId === menu.id).length
               : 0
           }
+          calculatedLight={(() => {
+            const bed = garden.beds.find((item) => item.id === menu.id);
+            return bed ? bedSun(bed.points, samples, garden.blocks).light : null;
+          })()}
           onRename={(name) => renameBed(menu.id, name)}
           onColour={(color) => setBedColour(menu.id, color)}
+          onSurface={(surface) => setBedSurface(menu.id, surface)}
+          onLight={(lightOverride) => setBedLight(menu.id, lightOverride)}
           onDuplicateBed={() => duplicateBed(menu.id)}
           onDeleteBed={() => removeBed(menu.id)}
           onDuplicateBlock={() => duplicateBlock(menu.id)}
@@ -1889,14 +1873,15 @@ function DesignerBody({
 
   function openMenu(
     event: { clientX: number; clientY: number; preventDefault: () => void },
-    hit: { kind: ShapeMenu["kind"]; id: string },
+    hit: { kind: ShapeMenu["kind"]; id: string; fills?: boolean },
   ) {
     event.preventDefault();
-    const width = 208;
-    const height = hit.kind === "bed" ? 248 : 112;
+    const width = hit.fills ? 288 : 208;
+    const height = hit.fills ? 500 : hit.kind === "bed" ? 180 : 112;
     setMenu({
       kind: hit.kind,
       id: hit.id,
+      fills: hit.fills,
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - width - 8)),
       y: Math.max(8, Math.min(event.clientY, window.innerHeight - height - 8)),
     });
@@ -1917,8 +1902,24 @@ function DesignerBody({
     update((current) => ({
       ...current,
       beds: current.beds.map((bed) =>
-        bed.id === id ? { ...bed, color: color.toLowerCase() } : bed,
+        bed.id === id ? { ...bed, color: color.toLowerCase(), surface: undefined } : bed,
       ),
+    }));
+  }
+
+  function setBedSurface(id: string, surface: GroundSurface) {
+    update((current) => ({
+      ...current,
+      beds: current.beds.map((bed) =>
+        bed.id === id ? { ...bed, surface, color: undefined } : bed,
+      ),
+    }));
+  }
+
+  function setBedLight(id: string, lightOverride: SunLevel | null) {
+    update((current) => ({
+      ...current,
+      beds: current.beds.map((bed) => (bed.id === id ? { ...bed, lightOverride } : bed)),
     }));
   }
 
@@ -2066,30 +2067,119 @@ function bedColour(color: string | undefined): string {
   return color && /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : "#a67c52";
 }
 
-function BedColours({ color, onColour }: { color?: string; onColour: (color: string) => void }) {
-  const current = bedColour(color);
+function bedSwatch(bed: { color?: string; surface?: GroundSurface }): string {
+  const surface = bedSurface(bed.surface);
+  return surface ? SURFACE_COLOR[surface] : bedColour(bed.color);
+}
+
+function GroundChoices({
+  surface,
+  hasOutline,
+  onSurface,
+}: {
+  surface: GroundSurface;
+  hasOutline: boolean;
+  onSurface: (surface: GroundSurface) => void;
+}) {
   return (
     <div>
-      <p className="text-xs text-ink/60">Colour</p>
-      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-        {BED_COLOURS.map((swatch) => (
-          <button
-            key={swatch.value}
-            className={`h-6 w-6 rounded-full border shadow ${current === swatch.value ? "border-ink ring-2 ring-ink/25" : "border-white"}`}
-            style={{ background: swatch.value }}
-            type="button"
-            aria-label={swatch.name}
-            aria-pressed={current === swatch.value}
-            onClick={() => onColour(swatch.value)}
+      <p className="text-xs font-medium text-ink/60">Ground</p>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {GROUND_SURFACES.map((id) => {
+          const selected = surface === id;
+          return (
+            <button
+              key={id}
+              className={
+                selected
+                  ? "inline-flex min-h-8 items-center gap-1.5 rounded-full bg-leaf px-2.5 py-1 text-xs text-white"
+                  : "inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1 text-xs text-ink hover:border-leaf"
+              }
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onSurface(id)}
+            >
+              <span
+                className="h-3 w-3 rounded-full border border-white/70"
+                style={{ background: SURFACE_COLOR[id] }}
+              />
+              {SURFACE_LABEL[id]}
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-1 text-xs text-ink/60">
+        {hasOutline
+          ? "Fills the property outline."
+          : "Fills the whole plan until a property outline is imported."}
+      </p>
+    </div>
+  );
+}
+
+function BedColours({
+  color,
+  surface,
+  onColour,
+  onSurface,
+}: {
+  color?: string;
+  surface: GroundSurface | null;
+  onColour: (color: string) => void;
+  onSurface: (surface: GroundSurface) => void;
+}) {
+  const current = surface ? null : bedColour(color);
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className="text-xs text-ink/60">Colour</p>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          {BED_COLOURS.map((swatch) => (
+            <button
+              key={swatch.value}
+              className={`h-6 w-6 rounded-full border shadow ${current === swatch.value ? "border-ink ring-2 ring-ink/25" : "border-white"}`}
+              style={{ background: swatch.value }}
+              type="button"
+              aria-label={swatch.name}
+              aria-pressed={current === swatch.value}
+              onClick={() => onColour(swatch.value)}
+            />
+          ))}
+          <input
+            className="h-6 w-6 cursor-pointer rounded-full border border-line bg-transparent"
+            type="color"
+            aria-label="Custom bed colour"
+            value={bedColour(color)}
+            onChange={(event) => onColour(event.target.value)}
           />
-        ))}
-        <input
-          className="h-6 w-6 cursor-pointer rounded-full border border-line bg-transparent"
-          type="color"
-          aria-label="Custom bed colour"
-          value={current}
-          onChange={(event) => onColour(event.target.value)}
-        />
+        </div>
+      </div>
+      <div>
+        <p className="text-xs text-ink/60">Material</p>
+        <div className="mt-1 flex flex-wrap gap-1">
+          {GROUND_SURFACES.map((id) => {
+            const selected = surface === id;
+            return (
+              <button
+                key={id}
+                className={
+                  selected
+                    ? "inline-flex min-h-8 items-center gap-1.5 rounded-full bg-leaf px-2.5 py-1 text-xs text-white"
+                    : "inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1 text-xs text-ink hover:border-leaf"
+                }
+                type="button"
+                aria-pressed={selected}
+                onClick={() => onSurface(id)}
+              >
+                <span
+                  className="h-3 w-3 rounded-full border border-white/70"
+                  style={{ background: SURFACE_COLOR[id] }}
+                />
+                {SURFACE_LABEL[id]}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -2174,6 +2264,9 @@ function ShapeMenu({
   plantCount,
   onRename,
   onColour,
+  onSurface,
+  calculatedLight,
+  onLight,
   onDuplicateBed,
   onDeleteBed,
   onDuplicateBlock,
@@ -2181,12 +2274,20 @@ function ShapeMenu({
   onRemovePlant,
 }: {
   menu: ShapeMenu;
-  bed: { name: string; color?: string } | null;
+  bed: {
+    name: string;
+    color?: string;
+    surface?: GroundSurface;
+    lightOverride: SunLevel | null;
+  } | null;
   block: { label?: string; source: "osm" | "user" } | null;
   plantName: string | null;
   plantCount: number;
   onRename: (name: string) => void;
   onColour: (color: string) => void;
+  onSurface: (surface: GroundSurface) => void;
+  calculatedLight: SunLevel | null;
+  onLight: (lightOverride: SunLevel | null) => void;
   onDuplicateBed: () => void;
   onDeleteBed: () => void;
   onDuplicateBlock: () => void;
@@ -2196,7 +2297,7 @@ function ShapeMenu({
   const itemClass = "block w-full px-3 py-1.5 text-left hover:bg-paper";
   return (
     <div
-      className="fixed z-30 w-52 rounded-md border border-line bg-card py-1 text-sm shadow-lg"
+      className={`fixed z-30 rounded-md border border-line bg-card py-1 text-sm shadow-lg ${menu.fills ? "w-72" : "w-52"}`}
       style={{ left: menu.x, top: menu.y }}
       data-shape-menu=""
       onContextMenu={(event) => event.preventDefault()}
@@ -2215,9 +2316,38 @@ function ShapeMenu({
               }}
             />
           </label>
-          <div className="px-3 py-1.5">
-            <BedColours color={bed.color} onColour={onColour} />
-          </div>
+          {menu.fills ? (
+            <div className="space-y-2 px-3 py-1.5">
+              <BedColours
+                color={bed.color}
+                surface={bedSurface(bed.surface)}
+                onColour={onColour}
+                onSurface={onSurface}
+              />
+              {calculatedLight ? (
+                <label className="block text-sm">
+                  Light for {bed.name}
+                  <select
+                    className="mt-1 w-full rounded-md border border-line bg-paper px-2 py-1"
+                    value={bed.lightOverride ?? "calculated"}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      onLight(value === "calculated" ? null : (value as SunLevel));
+                    }}
+                  >
+                    <option value="calculated">
+                      Use the sun calculation ({SUN_LABEL[calculatedLight]})
+                    </option>
+                    {SUN_LEVELS.map((level) => (
+                      <option key={level} value={level}>
+                        Override: {SUN_LABEL[level]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+          ) : null}
           <button className={itemClass} type="button" onClick={onDuplicateBed}>
             Duplicate
           </button>
