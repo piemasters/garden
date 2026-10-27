@@ -10,9 +10,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { MutableRefObject, ReactNode } from "react";
 import * as THREE from "three";
 import { plotMetres } from "../../domain/boundary";
-import { centroid, lineEnds, scaleLength } from "../../domain/geometry";
+import { blockCorners, centroid, lineEnds, scaleLength } from "../../domain/geometry";
+import { slopeGradient } from "../../domain/slope";
 import { shadowFootprint, type SunSample } from "../../domain/sun";
-import type { Bed, Placement, Plant, Point, ShadeBlock } from "../../domain/types";
+import type { Bed, GroundSlope, Placement, Plant, Point, ShadeBlock } from "../../domain/types";
 import { useUnits } from "../units";
 import { ShadeBody } from "./shade-shape";
 
@@ -54,6 +55,7 @@ export interface SceneProps {
   measure: { text: string; at: Point } | null;
   blockDraft: ShadeBlock | null;
   boundary: Point[] | null;
+  slope?: GroundSlope;
   sunArc: Array<[number, number, number]>;
   shadeSamples: SunSample[];
   onSurface: (point: Point, phase: "down" | "move" | "up") => void;
@@ -77,6 +79,8 @@ type Pixel = { x: number; y: number };
 export function GardenScene(props: SceneProps) {
   const metres = plotMetres(props.boundary);
   const orbit = 12 * (metres / 32);
+  const groundTilt = useMemo(() => tiltForSlope(props.slope), [props.slope]);
+  const shadowSlope = props.view === "orbit" && props.slope ? slopeGradient(props.slope) : null;
   const planControls = useRef<PlanControls>({
     panByPixels: () => undefined,
     setGrabbing: () => undefined,
@@ -133,11 +137,20 @@ export function GardenScene(props: SceneProps) {
       <ambientLight intensity={0.7} />
       <directionalLight position={[8, 14, 4]} intensity={1.1} />
       <hemisphereLight args={["#f4f1e8", "#6d8a62", 0.4]} />
-      <gridHelper
-        args={[metres, metres, "#8ea184", "#d7e3cf"]}
-        position={[0, 0.01, 0]}
-        raycast={() => null}
-      />
+      {props.view === "plan" ? (
+        <gridHelper
+          args={[metres, metres, "#8ea184", "#d7e3cf"]}
+          position={[0, 0.01, 0]}
+          raycast={() => null}
+        />
+      ) : (
+        <OrbitGround
+          metres={metres}
+          tilt={groundTilt}
+          tool={props.tool}
+          onSurface={props.onSurface}
+        />
+      )}
       {props.view === "plan" ? (
         <>
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} raycast={() => null}>
@@ -151,48 +164,22 @@ export function GardenScene(props: SceneProps) {
             onSurface={props.onSurface}
           />
         </>
-      ) : (
-        <mesh
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[0, 0, 0]}
-          onPointerDown={(event) => {
-            event.stopPropagation();
-            props.onSurface(fromWorld(event.point), "down");
-          }}
-          onPointerMove={(event) => {
-            if (props.tool !== "select") props.onSurface(fromWorld(event.point), "move");
-          }}
-          onPointerUp={(event) => {
-            if (
-              props.tool === "block" ||
-              props.tool === "rect" ||
-              props.tool === "freeform" ||
-              props.tool === "place" ||
-              props.tool === "rotate" ||
-              props.tool === "scale" ||
-              props.tool === "move"
-            ) {
-              props.onSurface(fromWorld(event.point), "up");
-            }
-          }}
-        >
-          <planeGeometry args={[metres + 16, metres + 16]} />
-          <meshStandardMaterial color="#d5e3c8" />
-        </mesh>
-      )}
+      ) : null}
       <NorthMark metres={metres} />
-      <BoundaryLine points={props.boundary} />
+      <BoundaryLine points={props.boundary} slope={shadowSlope} />
       {props.sunArc.length > 1 ? (
         <Line points={props.sunArc} color="#e2b33a" lineWidth={2} />
       ) : null}
       <CastShade
         blocks={props.blockDraft ? [...props.blocks, props.blockDraft] : props.blocks}
         samples={props.shadeSamples}
+        slope={shadowSlope}
       />
       {props.beds.map((bed) => (
         <BedMesh
           key={bed.id}
           bed={bed}
+          slope={shadowSlope}
           selected={bed.id === props.selectedBedId}
           interactive={props.tool === "select"}
           onSurface={props.onSurface}
@@ -205,13 +192,22 @@ export function GardenScene(props: SceneProps) {
           ? props.draft
           : []
       ).map((point, index) => (
-        <mesh key={`${point.x},${point.y},${index}`} position={[point.x, 0.12, -point.y]}>
+        <mesh
+          key={`${point.x},${point.y},${index}`}
+          position={[point.x, groundHeight(shadowSlope, point.x, point.y) + 0.12, -point.y]}
+        >
           <sphereGeometry args={[0.15, 12, 12]} />
           <meshBasicMaterial color="#1e4632" />
         </mesh>
       ))}
-      <DraftLine points={props.preview ?? props.draft} closed={props.previewClosed} />
-      {props.measure ? <MeasureLabel text={props.measure.text} at={props.measure.at} /> : null}
+      <DraftLine
+        points={props.preview ?? props.draft}
+        closed={props.previewClosed}
+        slope={shadowSlope}
+      />
+      {props.measure ? (
+        <MeasureLabel text={props.measure.text} at={props.measure.at} slope={shadowSlope} />
+      ) : null}
       <HandleTracker
         points={
           props.showHandles
@@ -223,11 +219,12 @@ export function GardenScene(props: SceneProps) {
         onSpots={props.onHandleSpots}
         pointerRef={props.pointerRef}
       />
-      <NameTracker beds={props.bedNames} onLabels={props.onBedLabels} />
+      <NameTracker beds={props.bedNames} slope={shadowSlope} onLabels={props.onBedLabels} />
       {props.blocks.map((block) => (
         <BlockMesh
           key={block.id}
           block={block}
+          slope={shadowSlope}
           selected={block.id === props.selectedBlockId}
           interactive={props.tool === "select"}
           onSelect={props.onSelectBlock}
@@ -237,12 +234,13 @@ export function GardenScene(props: SceneProps) {
       {props.blockDraft ? (
         <BlockMesh
           block={props.blockDraft}
+          slope={shadowSlope}
           selected
           interactive={false}
           onSelect={() => undefined}
         />
       ) : null}
-      {props.blockDraft?.line ? <LineDraft block={props.blockDraft} /> : null}
+      {props.blockDraft?.line ? <LineDraft block={props.blockDraft} slope={shadowSlope} /> : null}
       {props.placements.map((placement) => {
         const plant = props.plantsById.get(placement.plantId);
         if (!plant) return null;
@@ -250,6 +248,7 @@ export function GardenScene(props: SceneProps) {
           <PlantMesh
             key={placement.id}
             placement={placement}
+            slope={shadowSlope}
             plant={plant}
             month={props.month}
             selected={placement.id === props.selectedPlacementId}
@@ -268,6 +267,15 @@ export function GardenScene(props: SceneProps) {
 
 function fromWorld(point: { x: number; z: number }): Point {
   return { x: point.x, y: -point.z };
+}
+
+/** Tips local up onto the slope normal. Null leaves the ground flat. */
+function tiltForSlope(slope: GroundSlope | undefined): THREE.Quaternion | null {
+  if (!slope) return null;
+  const gradient = slopeGradient(slope);
+  if (!gradient) return null;
+  const normal = new THREE.Vector3(-gradient.east, 1, gradient.north).normalize();
+  return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
 }
 
 function fittedZoom(metres: number, width: number, height: number) {
@@ -558,7 +566,16 @@ function NorthMark({ metres }: { metres: number }) {
   );
 }
 
-function CastShade({ blocks, samples }: { blocks: ShadeBlock[]; samples: SunSample[] }) {
+function CastShade({
+  blocks,
+  samples,
+  slope,
+}: {
+  blocks: ShadeBlock[];
+  samples: SunSample[];
+  /** Uphill rise per metre. Null keeps the shadow on the flat ground. */
+  slope: { east: number; north: number } | null;
+}) {
   const patches = useMemo(() => {
     const next: { key: string; points: Point[] }[] = [];
     blocks.forEach((block, blockIndex) => {
@@ -571,15 +588,21 @@ function CastShade({ blocks, samples }: { blocks: ShadeBlock[]; samples: SunSamp
     return next;
   }, [blocks, samples]);
   return (
-    <group>
+    <>
       {patches.map((patch) => (
-        <ShadowPatch key={patch.key} points={patch.points} />
+        <ShadowPatch key={patch.key} points={patch.points} slope={slope} />
       ))}
-    </group>
+    </>
   );
 }
 
-function ShadowPatch({ points }: { points: Point[] }) {
+function ShadowPatch({
+  points,
+  slope,
+}: {
+  points: Point[];
+  slope: { east: number; north: number } | null;
+}) {
   const geometry = useMemo(() => {
     const shape = new THREE.Shape();
     points.forEach((point, index) => {
@@ -587,8 +610,10 @@ function ShadowPatch({ points }: { points: Point[] }) {
       else shape.lineTo(point.x, point.y);
     });
     shape.closePath();
-    return new THREE.ShapeGeometry(shape);
-  }, [points]);
+    const next = new THREE.ShapeGeometry(shape);
+    layOnSlope(next, slope);
+    return next;
+  }, [points, slope]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <mesh
@@ -597,46 +622,68 @@ function ShadowPatch({ points }: { points: Point[] }) {
       geometry={geometry}
       raycast={() => null}
     >
-      <meshBasicMaterial color="#243044" transparent opacity={0.16} depthWrite={false} />
+      <meshBasicMaterial
+        color="#243044"
+        transparent
+        opacity={0.16}
+        depthWrite={false}
+        side={THREE.DoubleSide}
+        polygonOffset
+        polygonOffsetFactor={slope ? -4 : 0}
+        polygonOffsetUnits={slope ? -4 : 0}
+      />
     </mesh>
   );
 }
 
-function BoundaryLine({ points }: { points: Point[] | null }) {
+function BoundaryLine({
+  points,
+  slope,
+}: {
+  points: Point[] | null;
+  slope: { east: number; north: number } | null;
+}) {
   if (!points || points.length < 3) return null;
   const first = points[0];
   if (!first) return null;
   const line = [...points, first].map(
-    (point) => [point.x, 0.08, -point.y] as [number, number, number],
+    (point) =>
+      [point.x, groundHeight(slope, point.x, point.y) + 0.08, -point.y] as [number, number, number],
   );
   return <Line points={line} color="#8d5b3c" lineWidth={3} raycast={() => null} />;
 }
 
 function BedMesh({
   bed,
+  slope,
   selected,
   interactive,
   onSurface,
   onMove,
 }: {
   bed: Bed;
+  slope: { east: number; north: number } | null;
   selected: boolean;
   interactive: boolean;
   onSurface: SceneProps["onSurface"];
   onMove?: SceneProps["onMoveBed"];
 }) {
   const { camera, gl } = useThree();
-  const shape = useMemo(() => {
-    const next = new THREE.Shape();
+  const geometry = useMemo(() => {
+    const shape = new THREE.Shape();
     bed.points.forEach((point, index) => {
-      if (index === 0) next.moveTo(point.x, point.y);
-      else next.lineTo(point.x, point.y);
+      if (index === 0) shape.moveTo(point.x, point.y);
+      else shape.lineTo(point.x, point.y);
     });
-    next.closePath();
+    shape.closePath();
+    const next = new THREE.ShapeGeometry(shape);
+    layOnSlope(next, slope);
     return next;
-  }, [bed.points]);
+  }, [bed.points, slope]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <mesh
+      geometry={geometry}
       rotation={[-Math.PI / 2, 0, 0]}
       position={[0, 0.04, 0]}
       raycast={interactive ? undefined : () => null}
@@ -674,7 +721,6 @@ function BedMesh({
         window.addEventListener("pointerup", up);
       }}
     >
-      <shapeGeometry args={[shape]} />
       <meshStandardMaterial color={bedFill(bed.color, selected)} />
     </mesh>
   );
@@ -687,13 +733,28 @@ function bedFill(color: string | undefined, selected: boolean): string {
   return `#${new THREE.Color(base).lerp(new THREE.Color("#fff8ee"), 0.32).getHexString()}`;
 }
 
-function DraftLine({ points, closed }: { points: Point[]; closed: boolean }) {
+function DraftLine({
+  points,
+  closed,
+  slope,
+}: {
+  points: Point[];
+  closed: boolean;
+  slope: { east: number; north: number } | null;
+}) {
   if (points.length < 2) return null;
   const first = points[0];
   const line = closed && first ? [...points, first] : points;
   return (
     <Line
-      points={line.map((point) => [point.x, 0.12, -point.y] as [number, number, number])}
+      points={line.map(
+        (point) =>
+          [point.x, groundHeight(slope, point.x, point.y) + 0.12, -point.y] as [
+            number,
+            number,
+            number,
+          ],
+      )}
       color="#1e4632"
       lineWidth={2}
     />
@@ -701,11 +762,17 @@ function DraftLine({ points, closed }: { points: Point[]; closed: boolean }) {
 }
 
 /** A fence or hedge is only a few centimetres wide, so the drag is drawn as a stroke. */
-function LineDraft({ block }: { block: ShadeBlock }) {
+function LineDraft({
+  block,
+  slope,
+}: {
+  block: ShadeBlock;
+  slope: { east: number; north: number } | null;
+}) {
   const [start, end] = lineEnds(block);
   const points = [
-    [start.x, 0.3, -start.y],
-    [end.x, 0.3, -end.y],
+    [start.x, groundHeight(slope, start.x, start.y) + 0.3, -start.y],
+    [end.x, groundHeight(slope, end.x, end.y) + 0.3, -end.y],
   ] as [number, number, number][];
   return (
     <group>
@@ -780,9 +847,11 @@ function HandleTracker({
 
 function NameTracker({
   beds,
+  slope,
   onLabels,
 }: {
   beds: SceneProps["bedNames"];
+  slope: { east: number; north: number } | null;
   onLabels: SceneProps["onBedLabels"];
 }) {
   const { camera, size } = useThree();
@@ -797,7 +866,11 @@ function NameTracker({
     }
     const labels = beds.map((bed) => {
       const centre = centroid(bed.points);
-      const projected = new THREE.Vector3(centre.x, 0, -centre.y).project(camera);
+      const projected = new THREE.Vector3(
+        centre.x,
+        groundHeight(slope, centre.x, centre.y),
+        -centre.y,
+      ).project(camera);
       return {
         id: bed.id,
         name: bed.name,
@@ -815,10 +888,18 @@ function NameTracker({
   return null;
 }
 
-function MeasureLabel({ text, at }: { text: string; at: Point }) {
+function MeasureLabel({
+  text,
+  at,
+  slope,
+}: {
+  text: string;
+  at: Point;
+  slope: { east: number; north: number } | null;
+}) {
   return (
     <Html
-      position={[at.x, 0.4, -at.y]}
+      position={[at.x, groundHeight(slope, at.x, at.y) + 0.4, -at.y]}
       center
       zIndexRange={[30, 0]}
       style={{ pointerEvents: "none" }}
@@ -874,12 +955,14 @@ function GroundScale({ metres }: { metres: number }) {
 
 function BlockMesh({
   block,
+  slope,
   selected,
   interactive,
   onSelect,
   onMove,
 }: {
   block: ShadeBlock;
+  slope: { east: number; north: number } | null;
   selected: boolean;
   interactive: boolean;
   onSelect: (id: string) => void;
@@ -889,56 +972,213 @@ function BlockMesh({
   const width = Math.max(block.width, 0.05);
   const depth = Math.max(block.depth, 0.05);
   const height = Math.max(block.height, 0.05);
+  const yaw = block.rotation ?? 0;
+  const seat = slope ? slopeSeat(block) : null;
+  const rise = seat === "foundation" ? footprintRise(block, slope) : null;
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+  const along = seat === "follow" && slope ? slope.east * cos + slope.north * sin : 0;
+  const across = seat === "follow" && slope ? slope.east * sin - slope.north * cos : 0;
+  const base = rise ? rise.high : slope ? groundHeight(slope, block.x, block.y) : 0;
   return (
-    <group position={[block.x, 0, -block.y]} rotation={[0, block.rotation ?? 0, 0]}>
-      <mesh
-        position={[0, height / 2, 0]}
-        visible={false}
-        raycast={interactive ? undefined : () => null}
-        onPointerDown={(event) => {
-          event.stopPropagation();
-          onSelect(block.id);
-          const point = fromWorld(event.point);
-          if (!onMove) return;
-          onMove(point, "down");
-          const read = (native: PointerEvent) => {
-            const rect = gl.domElement.getBoundingClientRect();
-            const x = ((native.clientX - rect.left) / rect.width) * 2 - 1;
-            const y = -((native.clientY - rect.top) / rect.height) * 2 + 1;
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
-            const hit = new THREE.Vector3();
-            if (
-              !raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit)
-            ) {
-              return null;
-            }
-            return { x: hit.x, y: -hit.z };
-          };
-          const move = (native: PointerEvent) => {
-            const next = read(native);
-            if (next) onMove(next, "move");
-          };
-          const up = (native: PointerEvent) => {
-            window.removeEventListener("pointermove", move);
-            window.removeEventListener("pointerup", up);
-            const next = read(native);
-            if (next) onMove(next, "up");
-          };
-          window.addEventListener("pointermove", move);
-          window.addEventListener("pointerup", up);
-        }}
-      >
-        <boxGeometry args={[width, height, depth]} />
-        <meshBasicMaterial />
-      </mesh>
-      <ShadeBody block={{ ...block, width, depth, height }} selected={selected} />
+    <group position={[block.x, base, -block.y]} rotation={[0, yaw, 0]}>
+      {rise && rise.drop > 0.02 ? (
+        <mesh position={[0, -rise.drop / 2, 0]} raycast={() => null}>
+          <boxGeometry args={[width, rise.drop, depth]} />
+          <meshStandardMaterial color="#b7b1a6" roughness={0.95} />
+        </mesh>
+      ) : null}
+      <GroundSeat along={along} across={across}>
+        <mesh
+          position={[0, height / 2, 0]}
+          visible={false}
+          raycast={interactive ? undefined : () => null}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            onSelect(block.id);
+            const point = fromWorld(event.point);
+            if (!onMove) return;
+            onMove(point, "down");
+            const read = (native: PointerEvent) => {
+              const rect = gl.domElement.getBoundingClientRect();
+              const x = ((native.clientX - rect.left) / rect.width) * 2 - 1;
+              const y = -((native.clientY - rect.top) / rect.height) * 2 + 1;
+              const raycaster = new THREE.Raycaster();
+              raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+              const hit = new THREE.Vector3();
+              if (
+                !raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit)
+              ) {
+                return null;
+              }
+              return { x: hit.x, y: -hit.z };
+            };
+            const move = (native: PointerEvent) => {
+              const next = read(native);
+              if (next) onMove(next, "move");
+            };
+            const up = (native: PointerEvent) => {
+              window.removeEventListener("pointermove", move);
+              window.removeEventListener("pointerup", up);
+              const next = read(native);
+              if (next) onMove(next, "up");
+            };
+            window.addEventListener("pointermove", move);
+            window.addEventListener("pointerup", up);
+          }}
+        >
+          <boxGeometry args={[width, height, depth]} />
+          <meshBasicMaterial />
+        </mesh>
+        <ShadeBody block={{ ...block, width, depth, height }} selected={selected} />
+      </GroundSeat>
     </group>
   );
 }
 
+/**
+ * How a block meets a slope. Houses and garages keep a level floor on a foundation.
+ * Trees stand upright on the ground at the trunk. Fences, hedges, and sheds follow the fall.
+ */
+function slopeSeat(block: ShadeBlock): "foundation" | "upright" | "follow" {
+  if (block.source === "osm") return "foundation";
+  const shape = block.label?.replace(/ copy(?: \d+)?$/, "");
+  if (shape === "House" || shape === "Garage") return "foundation";
+  if (shape === "Tree") return "upright";
+  return "follow";
+}
+
+/** Floor at the uphill ground, and how far the base must reach the downhill ground. */
+function footprintRise(
+  block: ShadeBlock,
+  slope: { east: number; north: number } | null,
+): { high: number; drop: number } {
+  if (!slope) return { high: 0, drop: 0 };
+  let high = Number.NEGATIVE_INFINITY;
+  let low = Number.POSITIVE_INFINITY;
+  for (const corner of blockCorners(block)) {
+    const height = groundHeight(slope, corner.x, corner.y);
+    high = Math.max(high, height);
+    low = Math.min(low, height);
+  }
+  if (!Number.isFinite(high) || !Number.isFinite(low)) return { high: 0, drop: 0 };
+  return { high, drop: high - low };
+}
+
+/** Keeps walls upright while the base follows the slope. */
+function GroundSeat({
+  along,
+  across,
+  children,
+}: {
+  along: number;
+  across: number;
+  children: ReactNode;
+}) {
+  const ref = useRef<THREE.Group>(null);
+  useLayoutEffect(() => {
+    const group = ref.current;
+    if (!group) return;
+    if (along === 0 && across === 0) {
+      group.matrix.identity();
+      group.matrixAutoUpdate = true;
+      return;
+    }
+    group.matrixAutoUpdate = false;
+    group.matrix.makeShear(along, 0, 0, 0, 0, across);
+    group.updateMatrixWorld(true);
+  }, [along, across]);
+  return <group ref={ref}>{children}</group>;
+}
+
+function layOnSlope(geometry: THREE.BufferGeometry, slope: { east: number; north: number } | null) {
+  if (!slope) return;
+  const position = geometry.getAttribute("position");
+  if (!(position instanceof THREE.BufferAttribute)) return;
+  for (let index = 0; index < position.count; index += 1) {
+    const east = position.getX(index);
+    const north = position.getY(index);
+    position.setZ(index, slope.east * east + slope.north * north);
+  }
+  position.needsUpdate = true;
+  geometry.computeBoundingSphere();
+}
+
+function OrbitGround({
+  metres,
+  tilt,
+  tool,
+  onSurface,
+}: {
+  metres: number;
+  tilt: THREE.Quaternion | null;
+  tool: SceneProps["tool"];
+  onSurface: SceneProps["onSurface"];
+}) {
+  const surface = (
+    <mesh
+      rotation={[-Math.PI / 2, 0, 0]}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        onSurface(fromWorld(event.point), "down");
+      }}
+      onPointerMove={(event) => {
+        if (tool !== "select") onSurface(fromWorld(event.point), "move");
+      }}
+      onPointerUp={(event) => {
+        if (
+          tool === "block" ||
+          tool === "rect" ||
+          tool === "freeform" ||
+          tool === "place" ||
+          tool === "rotate" ||
+          tool === "scale" ||
+          tool === "move"
+        ) {
+          onSurface(fromWorld(event.point), "up");
+        }
+      }}
+    >
+      <planeGeometry args={[metres + 16, metres + 16]} />
+      <meshStandardMaterial color="#d5e3c8" />
+    </mesh>
+  );
+  if (!tilt) {
+    return (
+      <>
+        <gridHelper
+          args={[metres, metres, "#8ea184", "#d7e3cf"]}
+          position={[0, 0.01, 0]}
+          raycast={() => null}
+        />
+        {surface}
+      </>
+    );
+  }
+  return (
+    <group quaternion={tilt}>
+      {surface}
+      <gridHelper
+        args={[metres, metres, "#8ea184", "#d7e3cf"]}
+        position={[0, 0.02, 0]}
+        raycast={() => null}
+      />
+    </group>
+  );
+}
+
+function groundHeight(
+  slope: { east: number; north: number } | null,
+  east: number,
+  north: number,
+): number {
+  if (!slope) return 0;
+  return slope.east * east + slope.north * north;
+}
+
 function PlantMesh({
   placement,
+  slope,
   plant,
   month,
   selected,
@@ -950,6 +1190,7 @@ function PlantMesh({
   onDrop,
 }: {
   placement: Placement;
+  slope: { east: number; north: number } | null;
   plant: Plant;
   month: number;
   selected: boolean;
@@ -970,7 +1211,7 @@ function PlantMesh({
   const leafy = Boolean(look?.foliage);
   const pick = interactive ? undefined : () => null;
   return (
-    <group position={[placement.x, 0, -placement.y]}>
+    <group position={[placement.x, groundHeight(slope, placement.x, placement.y), -placement.y]}>
       <IgnorePointer>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]}>
           <ringGeometry args={[Math.max(spread / 2 - 0.04, 0.04), spread / 2, 20]} />

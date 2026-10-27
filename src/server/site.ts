@@ -16,7 +16,8 @@ import {
 import type { TitlePlot } from "../domain/titles";
 import { gridToWgs84, wgs84ToGrid } from "../domain/osgb";
 import { describeSoilReading, parseBgsFeatureInfo, soilFromBgs } from "../domain/soil";
-import type { Point, ShadeBlock, SoilType } from "../domain/types";
+import { fitSlope, slopeSamplePoints, type SlopeSample } from "../domain/slope";
+import type { GroundSlope, Point, ShadeBlock, SoilType } from "../domain/types";
 
 export interface AddressChoice {
   label: string;
@@ -46,6 +47,8 @@ export type SiteLookup =
       boundaryNote: string | null;
       attribution: string | null;
       choices: AddressChoice[] | null;
+      /** Null while the address is still being chosen. */
+      slope: GroundSlope | null;
     }
   | { ok: false; error: string };
 
@@ -94,6 +97,71 @@ async function suggestSoil(
   return { soil, label: describeSoilReading(reading, soil) };
 }
 
+const EUDEM_ATTRIBUTION =
+  "Ground slope from EU-DEM v1.1, produced using Copernicus data and information funded by the European Union.";
+const COPERNICUS_ATTRIBUTION = "Ground slope from the Copernicus DEM GLO-90, via Open-Meteo.";
+
+async function suggestSlope(
+  latitude: number,
+  longitude: number,
+  boundary: Point[] | null,
+): Promise<{ slope: GroundSlope; attribution: string | null }> {
+  const local = slopeSamplePoints(boundary);
+  const geographic = local.map((point) => fromLocalMetres(point, latitude, longitude));
+  const sources = [
+    { read: elevationsFromEuDem, attribution: EUDEM_ATTRIBUTION },
+    { read: elevationsFromOpenMeteo, attribution: COPERNICUS_ATTRIBUTION },
+  ];
+  for (const source of sources) {
+    const readings = await source.read(geographic);
+    if (!readings) continue;
+    const samples: SlopeSample[] = [];
+    local.forEach((point, index) => {
+      const elevation = readings[index];
+      if (typeof elevation === "number") samples.push({ ...point, elevation });
+    });
+    const slope = fitSlope(samples);
+    if (slope.kind !== "unknown") return { slope, attribution: source.attribution };
+  }
+  return { slope: { kind: "unknown" }, attribution: null };
+}
+
+async function elevationsFromEuDem(
+  points: Array<{ latitude: number; longitude: number }>,
+): Promise<Array<number | null> | null> {
+  const url = new URL("https://api.opentopodata.org/v1/eudem25m");
+  url.searchParams.set(
+    "locations",
+    points.map((point) => `${point.latitude},${point.longitude}`).join("|"),
+  );
+  const response = await fetch(url, { signal: AbortSignal.timeout(12_000) });
+  if (!response.ok) return null;
+  const body = (await response.json()) as {
+    status?: string;
+    results?: Array<{ elevation?: number | null }>;
+  };
+  if (body.status !== "OK" || body.results?.length !== points.length) return null;
+  return body.results.map((row) => (typeof row.elevation === "number" ? row.elevation : null));
+}
+
+async function elevationsFromOpenMeteo(
+  points: Array<{ latitude: number; longitude: number }>,
+): Promise<Array<number | null> | null> {
+  const url = new URL("https://api.open-meteo.com/v1/elevation");
+  url.searchParams.set("latitude", points.map((point) => point.latitude).join(","));
+  url.searchParams.set("longitude", points.map((point) => point.longitude).join(","));
+  const response = await fetch(url, { signal: AbortSignal.timeout(12_000) });
+  if (!response.ok) return null;
+  const body = (await response.json()) as { elevation?: number[] };
+  if (!body.elevation || body.elevation.length !== points.length) return null;
+  return body.elevation.map((elevation) => (typeof elevation === "number" ? elevation : null));
+}
+
+function joinAttribution(...parts: Array<string | null>): string | null {
+  const text = parts.filter((part): part is string => Boolean(part && part.length > 0)).join(" ");
+  return text.length > 0 ? text : null;
+}
+
 export const lookupSite = createServerFn({ method: "POST" })
   .validator((input: SiteQuery) => ({
     address: input.address.trim(),
@@ -123,11 +191,20 @@ export const lookupSite = createServerFn({ method: "POST" })
       const postcode = result.postcode ?? formatPostcode(compact);
       const located = await locateAddress(data, result);
       let soilSuggestion: { soil: SoilType; label: string } | null = null;
+      let slope: GroundSlope | null = null;
+      let slopeAttribution: string | null = null;
       if (!located.choices) {
         try {
           soilSuggestion = await suggestSoil(located.latitude, located.longitude);
         } catch {
           soilSuggestion = null;
+        }
+        try {
+          const ground = await suggestSlope(located.latitude, located.longitude, located.boundary);
+          slope = ground.slope;
+          slopeAttribution = ground.attribution;
+        } catch {
+          slope = { kind: "unknown" };
         }
       }
       return {
@@ -141,8 +218,9 @@ export const lookupSite = createServerFn({ method: "POST" })
         matchedAddress: located.matchedAddress,
         boundary: located.boundary,
         boundaryNote: located.boundaryNote,
-        attribution: located.attribution,
+        attribution: joinAttribution(located.attribution, slopeAttribution),
         choices: located.choices,
+        slope,
       };
     } catch {
       return {

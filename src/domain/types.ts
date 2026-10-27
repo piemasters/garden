@@ -75,6 +75,12 @@ export interface Point {
   y: number;
 }
 
+/** Neighbourhood ground fall. `bearing` is degrees clockwise from north, downhill. */
+export type GroundSlope =
+  | { kind: "fall"; bearing: number; gradient: number }
+  | { kind: "level" }
+  | { kind: "unknown" };
+
 export interface ShadeBlock {
   id: string;
   x: number;
@@ -121,6 +127,8 @@ export interface GardenSite {
   exposure: Exposure;
   soilSuggestion: { soil: SoilType; label: string } | null;
   address: string | null;
+  /** Missing on gardens saved before a slope was looked up. */
+  slope?: GroundSlope;
 }
 
 export interface Garden {
@@ -138,6 +146,8 @@ export interface Garden {
   showBedNames?: boolean;
   /** Ground shadows from shade items. Missing means shown. */
   showShade?: boolean;
+  /** Tilted ground in the 3D view. Missing means shown. */
+  showSlope?: boolean;
   boundary: Point[] | null;
   attribution: string | null;
 }

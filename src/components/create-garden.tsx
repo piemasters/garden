@@ -21,6 +21,7 @@ import {
   PH_LABEL,
   SOIL_LABEL,
 } from "../domain/labels";
+import { describeSlope } from "../domain/slope";
 import { upsertGarden } from "../lib/gardens";
 import { lookupPlotsAround, lookupSite, type AddressChoice, type SiteLookup } from "../server/site";
 import { buttonClass, inputClass, quietButtonClass } from "./chrome";
@@ -276,6 +277,7 @@ function ConfirmSite({
         showUnsuitable: false,
         showBedNames: false,
         showShade: true,
+        showSlope: true,
         boundary: site.boundary,
         attribution: site.attribution,
         blocks: [],
@@ -295,10 +297,12 @@ function ConfirmSite({
           aspect: value.aspect,
           exposure: value.exposure,
           soilSuggestion: site.soilSuggestion,
+          slope: site.slope ?? { kind: "unknown" },
         },
       });
     },
   });
+  const slopeText = describeSlope(site.slope);
 
   return (
     <form
@@ -332,6 +336,7 @@ function ConfirmSite({
           match.
         </p>
       )}
+      {slopeText ? <p className="rounded-md bg-mist px-3 py-2 text-sm">{slopeText}</p> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <form.Field name="soil">
           {(field) => (

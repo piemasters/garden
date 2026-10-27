@@ -43,6 +43,7 @@ import {
 import { buildTimeline } from "../../domain/jobs";
 import { getPlant, PLANTS } from "../../domain/plants";
 import { aspectNote, recommendPlants } from "../../domain/recommend";
+import { describeSlope } from "../../domain/slope";
 import { bedSun, daySamples, midsummerSamples, sunVector } from "../../domain/sun";
 import {
   MONTH_NAMES,
@@ -995,6 +996,7 @@ function DesignerBody({
     return moved ? { ...placement, x: moved.x, y: moved.y } : placement;
   });
   const jobCount = buildTimeline(PLANTS, garden.placements, garden.site).length;
+  const slopeText = describeSlope(garden.site.slope);
   const bedPlacements = activeBed
     ? garden.placements.filter((placement) => placement.bedId === activeBed.id)
     : [];
@@ -1021,6 +1023,7 @@ function DesignerBody({
               <p className="text-sm text-ink/70">
                 {garden.site.postcode} · {garden.site.region}
               </p>
+              {slopeText ? <p className="text-sm text-ink/70">{slopeText}</p> : null}
             </summary>
             <div className="mt-2 space-y-2">
               <p className="text-sm">
@@ -1376,19 +1379,34 @@ function DesignerBody({
               />
               <span className="font-medium">{MONTH_NAMES[month]}</span>
             </label>
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={garden.showShade !== false}
-                onChange={(event) =>
-                  update((current) => ({
-                    ...current,
-                    showShade: event.target.checked,
-                  }))
-                }
-              />
-              Show shade
-            </label>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={garden.showShade !== false}
+                  onChange={(event) =>
+                    update((current) => ({
+                      ...current,
+                      showShade: event.target.checked,
+                    }))
+                  }
+                />
+                Show shade
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={garden.showSlope !== false}
+                  onChange={(event) =>
+                    update((current) => ({
+                      ...current,
+                      showSlope: event.target.checked,
+                    }))
+                  }
+                />
+                Show slope
+              </label>
+            </div>
             {garden.showShade !== false ? (
               <p className="text-xs text-ink/60">
                 Shadows show where shade falls in the middle of this month.
@@ -1739,6 +1757,7 @@ function DesignerBody({
           measure={adjust ? { text: adjust.label, at: centroid(adjust.points) } : drawing.measure}
           blockDraft={blockDraft}
           boundary={garden.boundary ?? null}
+          slope={garden.showSlope === false ? undefined : garden.site.slope}
           sunArc={sunArc}
           shadeSamples={garden.showShade === false ? [] : shadeSamples}
           onSurface={handleSurface}
