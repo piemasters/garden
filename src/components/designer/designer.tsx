@@ -1828,6 +1828,7 @@ function DesignerBody({
           onColour={(color) => setBedColour(menu.id, color)}
           onSurface={(surface) => setBedSurface(menu.id, surface)}
           onLight={(lightOverride) => setBedLight(menu.id, lightOverride)}
+          onRaised={(raised) => setBedRaised(menu.id, raised)}
           onDuplicateBed={() => duplicateBed(menu.id)}
           onDeleteBed={() => removeBed(menu.id)}
           onDuplicateBlock={() => duplicateBlock(menu.id)}
@@ -1877,7 +1878,7 @@ function DesignerBody({
   ) {
     event.preventDefault();
     const width = hit.fills ? 288 : 208;
-    const height = hit.fills ? 500 : hit.kind === "bed" ? 180 : 112;
+    const height = hit.fills ? 540 : hit.kind === "bed" ? 180 : 112;
     setMenu({
       kind: hit.kind,
       id: hit.id,
@@ -1920,6 +1921,13 @@ function DesignerBody({
     update((current) => ({
       ...current,
       beds: current.beds.map((bed) => (bed.id === id ? { ...bed, lightOverride } : bed)),
+    }));
+  }
+
+  function setBedRaised(id: string, raised: boolean) {
+    update((current) => ({
+      ...current,
+      beds: current.beds.map((bed) => (bed.id === id ? { ...bed, raised } : bed)),
     }));
   }
 
@@ -2267,6 +2275,7 @@ function ShapeMenu({
   onSurface,
   calculatedLight,
   onLight,
+  onRaised,
   onDuplicateBed,
   onDeleteBed,
   onDuplicateBlock,
@@ -2279,6 +2288,7 @@ function ShapeMenu({
     color?: string;
     surface?: GroundSurface;
     lightOverride: SunLevel | null;
+    raised?: boolean;
   } | null;
   block: { label?: string; source: "osm" | "user" } | null;
   plantName: string | null;
@@ -2288,6 +2298,7 @@ function ShapeMenu({
   onSurface: (surface: GroundSurface) => void;
   calculatedLight: SunLevel | null;
   onLight: (lightOverride: SunLevel | null) => void;
+  onRaised: (raised: boolean) => void;
   onDuplicateBed: () => void;
   onDeleteBed: () => void;
   onDuplicateBlock: () => void;
@@ -2346,6 +2357,14 @@ function ShapeMenu({
                   </select>
                 </label>
               ) : null}
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={bed.raised === true}
+                  onChange={(event) => onRaised(event.target.checked)}
+                />
+                Raised bed
+              </label>
             </div>
           ) : null}
           <button className={itemClass} type="button" onClick={onDuplicateBed}>

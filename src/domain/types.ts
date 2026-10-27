@@ -105,6 +105,8 @@ export interface Bed {
   color?: string;
   /** Material fill. When set, it replaces the flat colour. */
   surface?: GroundSurface;
+  /** Timber sides in the 3D view. Missing means level with the ground. */
+  raised?: boolean;
 }
 
 export interface Placement {
