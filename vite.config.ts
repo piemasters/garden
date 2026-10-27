@@ -18,6 +18,10 @@ const config = defineConfig({
     options: { typeAware: true, typeCheck: true },
   },
   resolve: { tsconfigPaths: true },
+  // Bundle three into server output. Its CommonJS entry require()s an ES module, which crashes the Netlify function.
+  ssr: {
+    noExternal: ["three", "@react-three/fiber", "@react-three/drei"],
+  },
   plugins: lazyPlugins(() => [
     devtools({ consolePiping: { enabled: false } }),
     tailwindcss(),
