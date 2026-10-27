@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { choiceMatchingAddress, isAreaResult } from "../domain/address-match";
-import { outlineAttribution, selectPlotBoundary } from "../domain/boundary";
-import { buildingHeight, footprintBlock, toLocalMetres } from "../domain/geometry";
+import { outlineAttribution, PLOT_NONE, selectPlotBoundary } from "../domain/boundary";
+import { buildingHeight, footprintBlock, fromLocalMetres, toLocalMetres } from "../domain/geometry";
+import type { TitlePlot } from "../domain/titles";
 import { gridToWgs84, wgs84ToGrid } from "../domain/osgb";
 import { describeSoilReading, parseBgsFeatureInfo, soilFromBgs } from "../domain/soil";
 import type { Point, ShadeBlock, SoilType } from "../domain/types";
@@ -267,6 +268,20 @@ async function chooseNearbyPlot(
     attribution: null,
     choices: null,
   };
+  const { persistentParcelCache, titlesAround } = await import("./titles");
+  const listed = await titlesAround(latitude, longitude, latitude, longitude, 320, 48);
+  if (listed.ok && listed.plots.length > 0) {
+    const choices = choicesFromPlots(listed.plots, latitude, longitude);
+    const matched = choiceMatchingAddress(address, choices);
+    if (matched) return importedSite(result, matched, null);
+    return {
+      ...empty,
+      boundaryNote:
+        "The house is not pinpointed on the free map. Click the map where the house is, then click its coloured plot.",
+      choices,
+    };
+  }
+  if (!persistentParcelCache()) return empty;
   const grid = wgs84ToGrid(latitude, longitude);
   const { freeholdNearby } = await import("./parcels");
   const nearby = await freeholdNearby(
@@ -321,6 +336,29 @@ export const lookupPlotsAround = createServerFn({ method: "POST" })
           return { ok: false, error: "The postcode service did not respond. Try the map again." };
         }
         const body = (await response.json()) as { result?: PostcodeResult };
+        const { persistentParcelCache, titlesAround } = await import("./titles");
+        const listed = await titlesAround(
+          data.latitude,
+          data.longitude,
+          data.originLatitude,
+          data.originLongitude,
+          180,
+          40,
+        );
+        if (listed.ok && listed.plots.length > 0) {
+          return {
+            ok: true,
+            choices: choicesFromPlots(listed.plots, data.originLatitude, data.originLongitude),
+          };
+        }
+        if (!persistentParcelCache()) {
+          return {
+            ok: false,
+            error: listed.ok
+              ? "No freehold plots were found there. Click another spot."
+              : listed.reason,
+          };
+        }
         const district = body.result?.admin_district ?? "";
         const grid = wgs84ToGrid(data.latitude, data.longitude);
         const { freeholdNearby } = await import("./parcels");
@@ -338,6 +376,22 @@ export const lookupPlotsAround = createServerFn({ method: "POST" })
       }
     },
   );
+
+function choicesFromPlots(
+  plots: TitlePlot[],
+  latitude: number,
+  longitude: number,
+): AddressChoice[] {
+  return plots.map((plot) => {
+    const geographic = fromLocalMetres({ x: plot.east, y: plot.north }, latitude, longitude);
+    return {
+      label: `Plot ${plot.width} × ${plot.depth} m, ${compass(plot.east, plot.north)}`,
+      latitude: geographic.latitude,
+      longitude: geographic.longitude,
+      outline: plot.ring,
+    };
+  });
+}
 
 function outlineChoices(
   plots: Array<{
@@ -393,6 +447,25 @@ async function searchAddress(
   | { kind: "one"; choice: AddressChoice }
   | { kind: "many"; choices: AddressChoice[] }
 > {
+  const nominatim = await searchNominatim(address, postcode, latitude, longitude);
+  if (nominatim.kind === "one" || nominatim.kind === "many") return nominatim;
+  const photon = await searchPhoton(address, latitude, longitude);
+  if (photon.kind === "one" || photon.kind === "many") return photon;
+  if (nominatim.kind === "none" || photon.kind === "none") return { kind: "none" };
+  return { kind: "down" };
+}
+
+async function searchNominatim(
+  address: string,
+  postcode: string,
+  latitude: number,
+  longitude: number,
+): Promise<
+  | { kind: "down" }
+  | { kind: "none" }
+  | { kind: "one"; choice: AddressChoice }
+  | { kind: "many"; choices: AddressChoice[] }
+> {
   try {
     const url = new URL("https://nominatim.openstreetmap.org/search");
     url.searchParams.set("format", "jsonv2");
@@ -433,7 +506,146 @@ async function searchAddress(
   }
 }
 
+const PHOTON_AREA = new Set([
+  "highway",
+  "place",
+  "boundary",
+  "landuse",
+  "waterway",
+  "natural",
+  "railway",
+]);
+
+async function searchPhoton(
+  address: string,
+  latitude: number,
+  longitude: number,
+): Promise<
+  | { kind: "down" }
+  | { kind: "none" }
+  | { kind: "one"; choice: AddressChoice }
+  | { kind: "many"; choices: AddressChoice[] }
+> {
+  try {
+    const west = fromLocalMetres({ x: -2_000, y: 0 }, latitude, longitude);
+    const east = fromLocalMetres({ x: 2_000, y: 0 }, latitude, longitude);
+    const south = fromLocalMetres({ x: 0, y: -2_000 }, latitude, longitude);
+    const north = fromLocalMetres({ x: 0, y: 2_000 }, latitude, longitude);
+    const url = new URL("https://photon.komoot.io/api/");
+    url.searchParams.set("q", address);
+    url.searchParams.set("lat", String(latitude));
+    url.searchParams.set("lon", String(longitude));
+    url.searchParams.set("limit", "5");
+    url.searchParams.set("lang", "en");
+    url.searchParams.set(
+      "bbox",
+      `${west.longitude},${south.latitude},${east.longitude},${north.latitude}`,
+    );
+    const response = await fetch(url, {
+      headers: {
+        accept: "application/json",
+        "user-agent": "uk-garden-planner/1.0 (personal garden planner)",
+      },
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!response.ok) return { kind: "down" };
+    const body = (await response.json()) as {
+      features?: Array<{
+        geometry?: { coordinates?: number[] };
+        properties?: {
+          name?: string;
+          housenumber?: string;
+          street?: string;
+          postcode?: string;
+          countrycode?: string;
+          osm_key?: string;
+          osm_value?: string;
+          type?: string;
+        };
+      }>;
+    };
+    const choices = (body.features ?? []).flatMap((feature) => {
+      const properties = feature.properties ?? {};
+      const coordinates = feature.geometry?.coordinates;
+      const placeLongitude = coordinates?.[0];
+      const placeLatitude = coordinates?.[1];
+      if (placeLatitude == null || placeLongitude == null) return [];
+      if (!Number.isFinite(placeLatitude) || !Number.isFinite(placeLongitude)) return [];
+      if (properties.countrycode && properties.countrycode !== "GB") return [];
+      if (PHOTON_AREA.has((properties.osm_key ?? "").toLowerCase())) return [];
+      if (isAreaResult(properties.osm_value, properties.type)) return [];
+      if (metresApart(placeLatitude, placeLongitude, latitude, longitude) > 2_000) return [];
+      const label = photonLabel(properties, address);
+      if (!photonAgrees(address, label)) return [];
+      return [
+        {
+          label,
+          latitude: placeLatitude,
+          longitude: placeLongitude,
+        },
+      ];
+    });
+    const unique = dedupeChoices(choices);
+    const only = unique[0];
+    if (!only) return { kind: "none" };
+    if (unique.length === 1) return { kind: "one", choice: only };
+    return { kind: "many", choices: unique };
+  } catch {
+    return { kind: "down" };
+  }
+}
+
+function photonAgrees(address: string, label: string): boolean {
+  const number = address.match(/^\s*(\d+[a-z]?)/i)?.[1]?.toLowerCase();
+  const words = address
+    .toLowerCase()
+    .replace(/^\s*\d+[a-z]?/, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .filter((word) => word.length > 3);
+  const text = label.toLowerCase();
+  if (number && !new RegExp(`\\b${number}\\b`).test(text)) return false;
+  return words.every((word) => text.includes(word));
+}
+
+function photonLabel(
+  properties: { name?: string; housenumber?: string; street?: string; postcode?: string },
+  fallback: string,
+): string {
+  const number = properties.housenumber?.trim();
+  const street = properties.street?.trim() || properties.name?.trim();
+  const line =
+    number && street && !street.toLowerCase().startsWith(number.toLowerCase())
+      ? `${number} ${street}`
+      : street || fallback;
+  const postcode = properties.postcode?.trim();
+  if (!postcode || line.toUpperCase().includes(postcode.toUpperCase())) return line;
+  return `${line}, ${postcode}`;
+}
+
 async function importFreehold(
+  adminDistrict: string,
+  latitude: number,
+  longitude: number,
+): Promise<{ boundary: Point[] | null; reason: string | null; year: number }> {
+  const { persistentParcelCache, titleAt } = await import("./titles");
+  const titles = await titleAt(latitude, longitude);
+  if (titles.ok && titles.rings.length > 0) {
+    const outline = selectPlotBoundary(titles.rings, 0, 0, (east, north) => ({
+      x: east,
+      y: north,
+    }));
+    return { boundary: outline.boundary, reason: outline.reason, year: titles.year };
+  }
+  if (persistentParcelCache()) return importCachedFreehold(adminDistrict, latitude, longitude);
+  return {
+    boundary: null,
+    reason: titles.ok ? PLOT_NONE : titles.reason,
+    year: titles.ok ? titles.year : new Date().getFullYear(),
+  };
+}
+
+async function importCachedFreehold(
   adminDistrict: string,
   latitude: number,
   longitude: number,

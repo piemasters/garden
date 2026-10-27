@@ -4,6 +4,7 @@ import { choiceMatchingAddress, isAreaResult } from "./address-match";
 describe("address matching", () => {
   it("treats a street or postcode result as an area", () => {
     expect(isAreaResult("residential", "yes")).toBe(true);
+    expect(isAreaResult("trunk", "trunk")).toBe(true);
     expect(isAreaResult("office", "government")).toBe(false);
   });
 
