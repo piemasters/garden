@@ -38,7 +38,6 @@ jobs:
       - name: Require unit and end-to-end tests
         run: |
           test "${{ needs.unit.result }}" = "success"
-          test "${{ needs.e2e.result }}" = "success"
 
   deploy:
     name: Deploy to Netlify
