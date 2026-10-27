@@ -10,7 +10,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { MutableRefObject, ReactNode } from "react";
 import * as THREE from "three";
 import { plotMetres } from "../../domain/boundary";
-import { adjustHandles, centroid, lineEnds, scaleLength } from "../../domain/geometry";
+import { centroid, lineEnds, scaleLength } from "../../domain/geometry";
 import { shadowFootprint, type SunSample } from "../../domain/sun";
 import type { Bed, Placement, Plant, Point, ShadeBlock } from "../../domain/types";
 import { useUnits } from "../units";
@@ -44,6 +44,8 @@ export interface SceneProps {
     | "scale"
     | "move";
   selectedBedId: string | null;
+  /** The bed the user has actually chosen. The highlight can fall back to another bed. */
+  chosenBedId: string | null;
   selectedPlacementId: string | null;
   selectedBlockId: string | null;
   draft: Point[];
@@ -57,6 +59,7 @@ export interface SceneProps {
   onSurface: (point: Point, phase: "down" | "move" | "up") => void;
   onMoveBed?: (point: Point, phase: "down" | "move" | "up") => void;
   onSelectPlacement: (id: string) => void;
+  onSelectBed: (id: string) => void;
   onDrag: (id: string, point: Point) => void;
   onDrop: (id: string, point: Point) => void;
   onSelectBlock: (id: string) => void;
@@ -250,8 +253,10 @@ export function GardenScene(props: SceneProps) {
             plant={plant}
             month={props.month}
             selected={placement.id === props.selectedPlacementId}
+            bedSelected={placement.bedId === props.chosenBedId}
             interactive={props.tool === "select"}
             onSelect={props.onSelectPlacement}
+            onSelectBed={props.onSelectBed}
             onDrag={props.onDrag}
             onDrop={props.onDrop}
           />
@@ -742,8 +747,6 @@ function HandleTracker({
       }
       return;
     }
-    const found = adjustHandles(points);
-    if (!found) return;
     const project = (point: Point) => {
       const projected = new THREE.Vector3(point.x, 0, -point.y).project(camera);
       return {
@@ -751,10 +754,21 @@ function HandleTracker({
         y: (-projected.y * 0.5 + 0.5) * size.height,
       };
     };
+    const center = project(centroid(points));
+    // Keep Turn and Size a fixed distance apart on screen. Following the
+    // corners makes them jump and overlap while the shape turns or grows.
+    const gap = 72;
+    const margin = 36;
     const next = {
-      turn: project(found.turn),
-      resize: project(found.resize),
-      center: project(centroid(points)),
+      center,
+      turn: {
+        x: center.x,
+        y: center.y - gap >= margin ? center.y - gap : center.y + gap,
+      },
+      resize: {
+        x: center.x + gap <= size.width - margin ? center.x + gap : center.x - gap,
+        y: center.y,
+      },
     };
     const key = `${Math.round(next.turn.x)},${Math.round(next.turn.y)},${Math.round(next.resize.x)},${Math.round(next.resize.y)}`;
     if (key === last.current) return;
@@ -928,8 +942,10 @@ function PlantMesh({
   plant,
   month,
   selected,
+  bedSelected,
   interactive,
   onSelect,
+  onSelectBed,
   onDrag,
   onDrop,
 }: {
@@ -937,8 +953,10 @@ function PlantMesh({
   plant: Plant;
   month: number;
   selected: boolean;
+  bedSelected: boolean;
   interactive: boolean;
   onSelect: (id: string) => void;
+  onSelectBed: (id: string) => void;
   onDrag: (id: string, point: Point) => void;
   onDrop: (id: string, point: Point) => void;
 }) {
@@ -974,6 +992,10 @@ function PlantMesh({
           raycast={pick}
           onPointerDown={(event) => {
             event.stopPropagation();
+            if (!bedSelected) {
+              onSelectBed(placement.bedId);
+              return;
+            }
             onSelect(placement.id);
             const originX = event.nativeEvent.clientX;
             const originY = event.nativeEvent.clientY;

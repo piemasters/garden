@@ -12,7 +12,7 @@ function DesignerRoute() {
   const { gardenId } = Route.useParams();
   const [view, setView] = useState<"plan" | "orbit">("plan");
   return (
-    <div className="flex h-dvh flex-col">
+    <div className="flex h-dvh flex-col overflow-hidden">
       <AppHeader
         gardenId={gardenId}
         view={view}

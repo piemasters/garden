@@ -1640,7 +1640,7 @@ function DesignerBody({
       </aside>
 
       <div
-        className={`relative order-1 shrink-0 lg:order-2 lg:h-auto lg:min-h-0 lg:flex-1 max-lg:landscape:h-auto max-lg:landscape:min-h-0 max-lg:landscape:shrink max-lg:landscape:flex-1 ${panelExpanded ? "h-0 max-lg:portrait:hidden lg:h-auto" : "h-[45vh]"}`}
+        className={`relative order-1 shrink-0 overflow-hidden lg:order-2 lg:h-auto lg:min-h-0 lg:flex-1 max-lg:landscape:h-auto max-lg:landscape:min-h-0 max-lg:landscape:shrink max-lg:landscape:flex-1 ${panelExpanded ? "h-0 max-lg:portrait:hidden lg:h-auto" : "h-[45vh]"}`}
         onContextMenu={(event) => {
           const hit = shapeAt(event);
           if (!hit) {
@@ -1730,6 +1730,7 @@ function DesignerBody({
           view={view}
           tool={tool}
           selectedBedId={selectedBlockId ? null : (activeBed?.id ?? null)}
+          chosenBedId={bedIsSelected ? selectedBedId : null}
           selectedPlacementId={selectedPlacementId}
           selectedBlockId={selectedBlockId}
           draft={draft}
@@ -1742,6 +1743,11 @@ function DesignerBody({
           shadeSamples={garden.showShade === false ? [] : shadeSamples}
           onSurface={handleSurface}
           onSelectPlacement={setSelectedPlacementId}
+          onSelectBed={(id) => {
+            setSelectedBedId(id);
+            setSelectedPlacementId(null);
+            setSelectedBlockId(null);
+          }}
           showHandles={
             view === "plan" &&
             !armedPlantId &&
@@ -2274,29 +2280,31 @@ function BedHandle({
   }
   return (
     <button
-      className="group absolute z-20 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full border border-white bg-leaf text-white shadow pointer-fine:h-7 pointer-fine:w-7 active:cursor-grabbing"
+      className="group absolute z-20 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none items-center justify-center rounded-full border border-white bg-leaf text-white shadow pointer-fine:h-7 pointer-fine:w-7 active:cursor-grabbing"
       style={{ left: at.x, top: at.y }}
       type="button"
       aria-label={label}
       onPointerDown={(event) => {
+        if (event.button !== 0) return;
         event.stopPropagation();
         event.preventDefault();
-        try {
-          event.currentTarget.setPointerCapture(event.pointerId);
-        } catch {
-          // The gesture still follows the pointer through move and release.
-        }
+        const pointerId = event.pointerId;
         atEvent(event, "down");
-      }}
-      onPointerMove={(event) => {
-        if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-        atEvent(event, "move");
-      }}
-      onPointerUp={(event) => {
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-        atEvent(event, "up");
+        const move = (native: PointerEvent) => {
+          if (native.pointerId !== pointerId) return;
+          native.preventDefault();
+          atEvent(native, "move");
+        };
+        const up = (native: PointerEvent) => {
+          if (native.pointerId !== pointerId) return;
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          window.removeEventListener("pointercancel", up);
+          atEvent(native, "up");
+        };
+        window.addEventListener("pointermove", move, { passive: false });
+        window.addEventListener("pointerup", up);
+        window.addEventListener("pointercancel", up);
       }}
     >
       <HandleIcon kind={kind} />
