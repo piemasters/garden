@@ -58,7 +58,7 @@ jobs:
         run: |
           test -n "$NETLIFY_AUTH_TOKEN" || { echo "Add the NETLIFY_AUTH_TOKEN repository secret."; exit 1; }
           test -n "$NETLIFY_SITE_ID" || { echo "Add the NETLIFY_SITE_ID repository secret."; exit 1; }
-          pnpm dlx netlify-cli@27.14.0 deploy --build --prod
+          pnpm dlx --package=netlify-cli netlify deploy --build --prod
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
