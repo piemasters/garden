@@ -154,12 +154,12 @@ const SHADE_PRESETS = [
   { label: "Fence", width: 4, depth: 0.3, height: 1.8, line: true },
 ] as const;
 
-export function GardenDesigner({ gardenId }: { gardenId: string }) {
+export function GardenDesigner({ gardenId, view }: { gardenId: string; view: "plan" | "orbit" }) {
   const { ready, garden, update } = useGarden(gardenId);
-  if (!ready) return <p className="p-6 text-sm">Loading garden…</p>;
+  if (!ready) return <p className="min-h-0 flex-1 p-6 text-sm">Loading garden…</p>;
   if (!garden) {
     return (
-      <p className="p-6">
+      <p className="min-h-0 flex-1 p-6">
         This garden is not saved in this browser.{" "}
         <Link to="/" className="text-leaf underline">
           Back to your gardens
@@ -167,15 +167,17 @@ export function GardenDesigner({ gardenId }: { gardenId: string }) {
       </p>
     );
   }
-  return <DesignerBody garden={garden} update={update} />;
+  return <DesignerBody garden={garden} update={update} view={view} />;
 }
 
 function DesignerBody({
   garden,
   update,
+  view,
 }: {
   garden: Garden;
   update: (recipe: (current: Garden) => Garden) => void;
+  view: "plan" | "orbit";
 }) {
   const units = useUnits();
   const [tool, setTool] = useState<Tool>("select");
@@ -209,7 +211,8 @@ function DesignerBody({
   const [selectedPlacementId, setSelectedPlacementId] = useState<string | null>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [month, setMonth] = useState(new Date().getMonth());
-  const [view, setView] = useState<"plan" | "orbit">("plan");
+  const [panel, setPanel] = useState<"create" | "beds" | "plants">("create");
+  const [panelExpanded, setPanelExpanded] = useState(false);
   const [scale, setScale] = useState<{ metres: number; pixels: number } | null>(null);
   const [bedLabels, setBedLabels] = useState<{ id: string; name: string; x: number; y: number }[]>(
     [],
@@ -298,6 +301,10 @@ function DesignerBody({
   const selectedBlock = garden.blocks.find((block) => block.id === selectedBlockId) ?? null;
   const bedIsSelected =
     selectedBlockId === null && garden.beds.some((bed) => bed.id === selectedBedId);
+  const selectedBed = bedIsSelected
+    ? (garden.beds.find((bed) => bed.id === selectedBedId) ?? null)
+    : null;
+  const selectedLight = selectedBed ? resolvedLight(selectedBed, samples, garden.blocks) : null;
   const selectionReady = selectedBlock !== null || bedIsSelected;
 
   useEffect(() => {
@@ -997,12 +1004,12 @@ function DesignerBody({
     : [];
 
   return (
-    <div className="grid min-h-[calc(100vh-4.25rem)] lg:grid-cols-[17rem_minmax(0,1fr)_20rem]">
-      <aside className="space-y-4 border-b border-line p-4 lg:border-r lg:border-b-0">
-        <div>
-          <details className="group">
+    <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <aside className="order-2 min-h-0 flex-1 space-y-4 overflow-y-auto border-t border-line p-4 max-lg:landscape:hidden lg:order-1 lg:w-80 lg:flex-none lg:border-t-0 lg:border-r">
+        <div className="flex items-start gap-2">
+          <details className="group min-w-0 flex-1">
             <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-              <h1 className="flex items-baseline gap-2 text-3xl">
+              <h1 className="flex items-baseline gap-2 text-2xl lg:text-3xl">
                 <span
                   aria-hidden
                   className="inline-block text-sm text-ink/50 transition-transform group-open:rotate-90"
@@ -1028,421 +1035,612 @@ function DesignerBody({
               ) : null}
             </div>
           </details>
+          <button
+            className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink/70 hover:bg-card hover:text-leaf max-lg:portrait:inline-flex"
+            type="button"
+            aria-pressed={panelExpanded}
+            aria-label={panelExpanded ? "Show the plan" : "Expand the panel"}
+            onClick={() => setPanelExpanded((expanded) => !expanded)}
+          >
+            <PanelCaret up={!panelExpanded} />
+          </button>
         </div>
-        <div className="space-y-1">
-          <div className="flex flex-wrap gap-1">
-            <ToolButton
-              compact
-              current={tool}
-              tool={SELECT_TOOL.tool}
-              title={SELECT_TOOL.help}
-              onClick={chooseTool}
-            >
-              {SELECT_TOOL.label}
-            </ToolButton>
-            <button
-              className="inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf disabled:cursor-not-allowed disabled:opacity-60"
-              type="button"
-              disabled={!selectionReady}
-              title="Copy the selected bed or shade area and place it beside the original."
-              onClick={duplicateSelection}
-            >
-              <DuplicateIcon />
-              Duplicate
-            </button>
-            <ToolButton compact current={tool} tool="move" onClick={chooseTool}>
-              Move
-            </ToolButton>
-            <ToolButton compact current={tool} tool="rotate" onClick={chooseTool}>
-              Rotate
-            </ToolButton>
-            <ToolButton compact current={tool} tool="scale" onClick={chooseTool}>
-              Scale
-            </ToolButton>
-            <button
-              className="inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-clay hover:border-clay disabled:cursor-not-allowed disabled:opacity-60"
-              type="button"
-              disabled={!selectionReady}
-              title="Remove the selected bed or shade area."
-              onClick={removeSelection}
-            >
-              Remove
-            </button>
-          </div>
-          {tool === "select" ? (
-            <p className="text-xs leading-snug text-ink/70">{SELECT_TOOL.help}</p>
-          ) : null}
-          {tool === "move" ? (
-            <p className="text-xs leading-snug text-ink/70">
-              Drag a bed to move it. The move snaps to {units.length(0.5)}, and plants come with it.
-              {drawNote ? ` ${drawNote}` : ""}
-            </p>
-          ) : null}
-          {tool === "rotate" ? (
-            <p className="text-xs leading-snug text-ink/70">
-              Drag a bed to turn it. The angle snaps to 5°, and plants in the bed turn with it.
-              {drawNote ? ` ${drawNote}` : ""}
-            </p>
-          ) : null}
-          {tool === "scale" ? (
-            <p className="text-xs leading-snug text-ink/70">
-              Drag from the edge of a bed. Pull outward to enlarge it, or inward to shrink it.
-              {drawNote ? ` ${drawNote}` : ""}
-            </p>
-          ) : null}
-        </div>
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-ink/60">Create Beds</p>
-          <div className="flex flex-wrap gap-1">
-            {BED_TOOLS.map((item) => (
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <div className="flex flex-wrap gap-1">
               <ToolButton
-                key={item.tool}
                 compact
                 current={tool}
-                tool={item.tool}
-                title={item.help}
+                tool={SELECT_TOOL.tool}
+                title={SELECT_TOOL.help}
                 onClick={chooseTool}
               >
-                {item.label}
+                {SELECT_TOOL.label}
               </ToolButton>
+              <button
+                className="inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf disabled:cursor-not-allowed disabled:opacity-60"
+                type="button"
+                disabled={!selectionReady}
+                title="Copy the selected bed or shade area and place it beside the original."
+                onClick={duplicateSelection}
+              >
+                <DuplicateIcon />
+                Duplicate
+              </button>
+              <ToolButton compact current={tool} tool="move" onClick={chooseTool}>
+                Move
+              </ToolButton>
+              <ToolButton compact current={tool} tool="rotate" onClick={chooseTool}>
+                Rotate
+              </ToolButton>
+              <ToolButton compact current={tool} tool="scale" onClick={chooseTool}>
+                Scale
+              </ToolButton>
+              <button
+                className="inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-clay hover:border-clay disabled:cursor-not-allowed disabled:opacity-60"
+                type="button"
+                disabled={!selectionReady}
+                title="Remove the selected bed or shade area."
+                onClick={removeSelection}
+              >
+                Remove
+              </button>
+            </div>
+            {tool === "select" || tool === "move" || tool === "rotate" || tool === "scale" ? (
+              <div className="hidden lg:block">
+                {tool === "select" ? (
+                  <p className="text-xs leading-snug text-ink/70">{SELECT_TOOL.help}</p>
+                ) : null}
+                {tool === "move" ? (
+                  <p className="text-xs leading-snug text-ink/70">
+                    Drag a bed to move it. The move snaps to {units.length(0.5)}, and plants come
+                    with it.
+                    {drawNote ? ` ${drawNote}` : ""}
+                  </p>
+                ) : null}
+                {tool === "rotate" ? (
+                  <p className="text-xs leading-snug text-ink/70">
+                    Drag a bed to turn it. The angle snaps to 5°, and plants in the bed turn with
+                    it.
+                    {drawNote ? ` ${drawNote}` : ""}
+                  </p>
+                ) : null}
+                {tool === "scale" ? (
+                  <p className="text-xs leading-snug text-ink/70">
+                    Drag from the edge of a bed. Pull outward to enlarge it, or inward to shrink it.
+                    {drawNote ? ` ${drawNote}` : ""}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          {selectedBed ? (
+            <BedColours
+              color={selectedBed.color}
+              onColour={(color) => setBedColour(selectedBed.id, color)}
+            />
+          ) : null}
+          {selectedBed && selectedLight ? (
+            <label className="block text-sm">
+              Light for {selectedBed.name}
+              <select
+                className="mt-1 w-full rounded-md border border-line bg-card px-2 py-2"
+                value={selectedBed.lightOverride ?? "calculated"}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  const lightOverride = value === "calculated" ? null : (value as SunLevel);
+                  update((current) => ({
+                    ...current,
+                    beds: current.beds.map((bed) =>
+                      bed.id === selectedBed.id ? { ...bed, lightOverride } : bed,
+                    ),
+                  }));
+                }}
+              >
+                <option value="calculated">
+                  Use the sun calculation ({SUN_LABEL[selectedLight.light]})
+                </option>
+                {SUN_LEVELS.map((level) => (
+                  <option key={level} value={level}>
+                    Override: {SUN_LABEL[level]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {selectedBlock ? (
+            <label className="block text-sm">
+              {selectedBlock.label ?? "Shade"} ·{" "}
+              {selectedBlock.line
+                ? `${units.length(selectedBlock.width)} long`
+                : units.size(selectedBlock.width, selectedBlock.depth)}
+              <span className="mt-2 block text-xs text-ink/60">
+                Height {units.length(selectedBlock.height)}
+              </span>
+              <input
+                className="mt-1 w-full"
+                type="range"
+                min={0.5}
+                max={20}
+                step={0.5}
+                value={selectedBlock.height}
+                onChange={(event) => {
+                  const height = Number(event.target.value);
+                  update((current) => ({
+                    ...current,
+                    blocks: current.blocks.map((block) =>
+                      block.id === selectedBlock.id ? { ...block, height } : block,
+                    ),
+                  }));
+                }}
+              />
+            </label>
+          ) : null}
+          {drawingLabel ? <p className="text-sm font-medium">{drawingLabel}</p> : null}
+          <div className="flex gap-1" role="tablist" aria-label="Panels">
+            {(
+              [
+                ["create", "Create"],
+                ["beds", "Beds"],
+                ["plants", "Plants"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                className={
+                  panel === id
+                    ? "min-h-8 flex-1 rounded-full bg-leaf px-2 py-1 text-xs text-white"
+                    : "min-h-8 flex-1 rounded-full border border-line bg-card px-2 py-1 text-xs text-ink hover:border-leaf"
+                }
+                type="button"
+                role="tab"
+                aria-selected={panel === id}
+                onClick={() => setPanel(id)}
+              >
+                {label}
+              </button>
             ))}
           </div>
-          {BED_TOOLS.some((item) => item.tool === tool) ? (
-            <p className="text-xs leading-snug text-ink/70">
-              {tool === "rect"
-                ? `Drag from one corner to the other. Corners snap to ${units.length(0.5)}.`
-                : BED_TOOLS.find((item) => item.tool === tool)?.help}
-            </p>
-          ) : null}
-          {tool === "freeform" && drawNote ? (
-            <p className="text-xs text-ink/70">{drawNote}</p>
-          ) : null}
-          {tool === "bed" ? (
-            <button
-              className="min-h-8 rounded-full border border-line bg-card px-2.5 py-1 text-xs text-ink hover:border-leaf disabled:cursor-not-allowed disabled:opacity-60"
-              type="button"
-              disabled={draft.length < 3}
-              onClick={() => {
-                addBed(draft);
-                setTool("select");
-                setCursor(null);
-              }}
-            >
-              Finish bed
-            </button>
-          ) : null}
         </div>
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-ink/60">Bed Presets</p>
-          <div className="flex flex-wrap gap-1">
-            {[...BUILTIN_BED_PRESETS, ...customPresets].map((item) => {
-              const armed =
-                tool === "place" &&
-                preset !== null &&
-                Math.abs(preset.width - item.widthM) < 0.05 &&
-                Math.abs(preset.depth - item.depthM) < 0.05;
-              const custom = !BUILTIN_BED_PRESETS.some((builtin) => builtin.id === item.id);
-              return (
-                <span key={item.id} className="inline-flex items-center">
-                  <button
-                    className={
-                      armed
-                        ? "min-h-8 rounded-full bg-leaf px-2 py-1 text-[11px] text-white"
-                        : "min-h-8 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf"
-                    }
-                    type="button"
-                    onClick={() => armPreset(item.widthM, item.depthM)}
+        {panel === "create" ? (
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-ink/60">Create Beds</p>
+              <div className="flex flex-wrap gap-1">
+                {BED_TOOLS.map((item) => (
+                  <ToolButton
+                    key={item.tool}
+                    compact
+                    current={tool}
+                    tool={item.tool}
+                    title={item.help}
+                    onClick={chooseTool}
                   >
-                    {units.size(item.widthM, item.depthM)}
-                  </button>
-                  {custom ? (
-                    <button
-                      className="ml-0.5 min-h-8 px-1 text-xs text-ink/50 hover:text-ink"
-                      type="button"
-                      aria-label={`Remove ${units.size(item.widthM, item.depthM)} preset`}
-                      onClick={() => deleteCustomPreset(item)}
-                    >
-                      ×
-                    </button>
-                  ) : null}
-                </span>
-              );
-            })}
-          </div>
-          {tool === "place" && preset ? (
-            <p className="text-xs leading-snug text-ink/70">
-              Click to place a north-south {units.size(preset.width, preset.depth)} bed, or drag to
-              aim it. The angle snaps to 5°.
-            </p>
-          ) : null}
-          <form className="flex flex-wrap items-end gap-1" onSubmit={addCustomPreset}>
-            <PresetSizeField
-              label="Width"
-              unit={units.unit}
-              value={presetWidth}
-              onChange={setPresetWidth}
-            />
-            <PresetSizeField
-              label="Depth"
-              unit={units.unit}
-              value={presetDepth}
-              onChange={setPresetDepth}
-            />
-            <button
-              className="self-end rounded-full border border-line bg-card px-3 py-1 text-sm text-ink hover:border-leaf"
-              type="submit"
-            >
-              Add
-            </button>
-          </form>
-          {presetError ? <p className="text-xs text-clay">{presetError}</p> : null}
-        </div>
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-ink/60">Create Shade Areas</p>
-          <div className="flex flex-wrap gap-1">
-            {SHADE_PRESETS.map((item) => {
-              const armed = shadePreset?.label === item.label;
-              return (
+                    {item.label}
+                  </ToolButton>
+                ))}
+              </div>
+              {BED_TOOLS.some((item) => item.tool === tool) ? (
+                <p className="text-xs leading-snug text-ink/70">
+                  {tool === "rect"
+                    ? `Drag from one corner to the other. Corners snap to ${units.length(0.5)}.`
+                    : BED_TOOLS.find((item) => item.tool === tool)?.help}
+                </p>
+              ) : null}
+              {tool === "freeform" && drawNote ? (
+                <p className="text-xs text-ink/70">{drawNote}</p>
+              ) : null}
+              {tool === "bed" ? (
                 <button
-                  key={item.label}
+                  className="min-h-8 rounded-full border border-line bg-card px-2.5 py-1 text-xs text-ink hover:border-leaf disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  disabled={draft.length < 3}
+                  onClick={() => {
+                    addBed(draft);
+                    setTool("select");
+                    setCursor(null);
+                  }}
+                >
+                  Finish bed
+                </button>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-ink/60">Bed Presets</p>
+              <div className="flex flex-wrap gap-1">
+                {[...BUILTIN_BED_PRESETS, ...customPresets].map((item) => {
+                  const armed =
+                    tool === "place" &&
+                    preset !== null &&
+                    Math.abs(preset.width - item.widthM) < 0.05 &&
+                    Math.abs(preset.depth - item.depthM) < 0.05;
+                  const custom = !BUILTIN_BED_PRESETS.some((builtin) => builtin.id === item.id);
+                  return (
+                    <span key={item.id} className="inline-flex items-center">
+                      <button
+                        className={
+                          armed
+                            ? "min-h-8 rounded-full bg-leaf px-2 py-1 text-[11px] text-white"
+                            : "min-h-8 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf"
+                        }
+                        type="button"
+                        onClick={() => armPreset(item.widthM, item.depthM)}
+                      >
+                        {units.size(item.widthM, item.depthM)}
+                      </button>
+                      {custom ? (
+                        <button
+                          className="ml-0.5 min-h-8 px-1 text-xs text-ink/50 hover:text-ink"
+                          type="button"
+                          aria-label={`Remove ${units.size(item.widthM, item.depthM)} preset`}
+                          onClick={() => deleteCustomPreset(item)}
+                        >
+                          ×
+                        </button>
+                      ) : null}
+                    </span>
+                  );
+                })}
+              </div>
+              {tool === "place" && preset ? (
+                <p className="text-xs leading-snug text-ink/70">
+                  Click to place a north-south {units.size(preset.width, preset.depth)} bed, or drag
+                  to aim it. The angle snaps to 5°.
+                </p>
+              ) : null}
+              <form className="flex flex-wrap items-end gap-1" onSubmit={addCustomPreset}>
+                <PresetSizeField
+                  label="Width"
+                  unit={units.unit}
+                  value={presetWidth}
+                  onChange={setPresetWidth}
+                />
+                <PresetSizeField
+                  label="Depth"
+                  unit={units.unit}
+                  value={presetDepth}
+                  onChange={setPresetDepth}
+                />
+                <button
+                  className="self-end rounded-full border border-line bg-card px-3 py-1 text-sm text-ink hover:border-leaf"
+                  type="submit"
+                >
+                  Add
+                </button>
+              </form>
+              {presetError ? <p className="text-xs text-clay">{presetError}</p> : null}
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-ink/60">Create Shade Areas</p>
+              <div className="flex flex-wrap gap-1">
+                {SHADE_PRESETS.map((item) => {
+                  const armed = shadePreset?.label === item.label;
+                  return (
+                    <button
+                      key={item.label}
+                      className={
+                        armed
+                          ? "min-h-8 rounded-full bg-leaf px-2 py-1 text-[11px] text-white"
+                          : "min-h-8 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf"
+                      }
+                      type="button"
+                      onClick={() => armShade(item)}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+                <button
                   className={
-                    armed
+                    tool === "block" && !shadePreset
                       ? "min-h-8 rounded-full bg-leaf px-2 py-1 text-[11px] text-white"
                       : "min-h-8 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf"
                   }
                   type="button"
-                  onClick={() => armShade(item)}
+                  title={CUSTOM_SHADE.help}
+                  onClick={() => chooseTool(CUSTOM_SHADE.tool)}
                 >
-                  {item.label}
+                  {CUSTOM_SHADE.label}
                 </button>
-              );
-            })}
-            <button
-              className={
-                tool === "block" && !shadePreset
-                  ? "min-h-8 rounded-full bg-leaf px-2 py-1 text-[11px] text-white"
-                  : "min-h-8 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf"
-              }
-              type="button"
-              title={CUSTOM_SHADE.help}
-              onClick={() => chooseTool(CUSTOM_SHADE.tool)}
-            >
-              {CUSTOM_SHADE.label}
-            </button>
-          </div>
-          {shadePreset ? (
-            <p className="text-xs leading-snug text-ink/70">
-              {presetIsLine(shadePreset)
-                ? garden.boundary && garden.boundary.length >= 3
-                  ? `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Near the property outline it snaps to that line. Scaling changes its length, not its width.`
-                  : `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Scaling changes its length, not its width.`
-                : `Click to place a ${shadePreset.label.toLowerCase()}, or drag to aim its long side.`}
+              </div>
+              {shadePreset ? (
+                <p className="text-xs leading-snug text-ink/70">
+                  {presetIsLine(shadePreset)
+                    ? garden.boundary && garden.boundary.length >= 3
+                      ? `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Near the property outline it snaps to that line. Scaling changes its length, not its width.`
+                      : `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Scaling changes its length, not its width.`
+                    : `Click to place a ${shadePreset.label.toLowerCase()}, or drag to aim its long side.`}
+                </p>
+              ) : tool === "block" ? (
+                <p className="text-xs leading-snug text-ink/70">{CUSTOM_SHADE.help}</p>
+              ) : null}
+            </div>
+            <p className="text-xs text-ink/60">
+              {!garden.buildingsLoaded
+                ? "Loading nearby buildings…"
+                : garden.buildingError
+                  ? garden.buildingError
+                  : garden.blocks.some((block) => block.source === "osm")
+                    ? "Grey blocks are OpenStreetMap buildings. Heights are often a guess. Delete any that are wrong."
+                    : "No building outlines were added for this point. You can draw shade blocks yourself."}
             </p>
-          ) : tool === "block" ? (
-            <p className="text-xs leading-snug text-ink/70">{CUSTOM_SHADE.help}</p>
-          ) : null}
-        </div>
-        {selectedBlock ? (
-          <label className="block text-sm">
-            {selectedBlock.label ?? "Shade"} ·{" "}
-            {selectedBlock.line
-              ? `${units.length(selectedBlock.width)} long`
-              : units.size(selectedBlock.width, selectedBlock.depth)}
-            <span className="mt-2 block text-xs text-ink/60">
-              Height {units.length(selectedBlock.height)}
-            </span>
-            <input
-              className="mt-1 w-full"
-              type="range"
-              min={0.5}
-              max={20}
-              step={0.5}
-              value={selectedBlock.height}
-              onChange={(event) => {
-                const height = Number(event.target.value);
-                update((current) => ({
-                  ...current,
-                  blocks: current.blocks.map((block) =>
-                    block.id === selectedBlock.id ? { ...block, height } : block,
-                  ),
-                }));
-              }}
-            />
-          </label>
-        ) : null}
-        {drawingLabel ? <p className="text-sm font-medium">{drawingLabel}</p> : null}
-        <p className="text-xs text-ink/60">
-          {!garden.buildingsLoaded
-            ? "Loading nearby buildings…"
-            : garden.buildingError
-              ? garden.buildingError
-              : garden.blocks.some((block) => block.source === "osm")
-                ? "Grey blocks are OpenStreetMap buildings. Heights are often a guess. Delete any that are wrong."
-                : "No building outlines were added for this point. You can draw shade blocks yourself."}
-        </p>
-        <label className="block text-sm">
-          Month
-          <input
-            className="mt-1 w-full"
-            type="range"
-            min={0}
-            max={11}
-            value={month}
-            onChange={(event) => setMonth(Number(event.target.value))}
-          />
-          <span className="font-medium">{MONTH_NAMES[month]}</span>
-        </label>
-        <label className="flex items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            checked={garden.showShade !== false}
-            onChange={(event) =>
-              update((current) => ({
-                ...current,
-                showShade: event.target.checked,
-              }))
-            }
-          />
-          Show shade
-        </label>
-        {garden.showShade !== false ? (
-          <p className="text-xs text-ink/60">
-            Shadows show where shade falls in the middle of this month.
-          </p>
-        ) : null}
-        <div className="flex gap-2">
-          <button
-            className={view === "plan" ? buttonClass : quietButtonClass}
-            type="button"
-            onClick={() => setView("plan")}
-          >
-            Plan
-          </button>
-          <button
-            className={view === "orbit" ? buttonClass : quietButtonClass}
-            type="button"
-            onClick={() => setView("orbit")}
-          >
-            3D
-          </button>
-        </div>
-        {view === "plan" ? (
-          <p className="text-xs leading-snug text-ink/60">
-            Scroll to zoom. Drag empty ground to move around. Double-click to centre the plan.
-          </p>
-        ) : null}
-        <div>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-lg">Beds</h2>
+            <label className="block text-sm">
+              Month
+              <input
+                className="mt-1 w-full"
+                type="range"
+                min={0}
+                max={11}
+                value={month}
+                onChange={(event) => setMonth(Number(event.target.value))}
+              />
+              <span className="font-medium">{MONTH_NAMES[month]}</span>
+            </label>
             <label className="flex items-center gap-2 text-xs">
               <input
                 type="checkbox"
-                checked={garden.showBedNames ?? false}
+                checked={garden.showShade !== false}
                 onChange={(event) =>
                   update((current) => ({
                     ...current,
-                    showBedNames: event.target.checked,
+                    showShade: event.target.checked,
                   }))
                 }
               />
-              Show names
+              Show shade
             </label>
-          </div>
-          <ul className="mt-2 space-y-2 text-sm">
-            {garden.beds.map((bed) => {
-              const points = adjust?.bedId === bed.id ? adjust.points : bed.points;
-              const light = resolvedLight({ ...bed, points }, samples, garden.blocks);
-              return (
-                <li key={bed.id}>
-                  <button
-                    className="text-left"
-                    type="button"
-                    onClick={() => {
-                      setSelectedBedId(bed.id);
-                      setSelectedBlockId(null);
-                    }}
-                    onContextMenu={(event) => openMenu(event, { kind: "bed", id: bed.id })}
-                  >
-                    <span className="flex items-center gap-2 font-medium">
-                      <span
-                        className="inline-block h-3 w-3 shrink-0 rounded-full border border-line"
-                        style={{ background: bedColour(bed.color) }}
-                      />
-                      {bed.name}
-                    </span>
-                    <span className="block text-ink/70">
-                      {bedSize(points, units.unit)} · {SUN_LABEL[light.light]} ·{" "}
-                      {light.hours.toFixed(1)} h of midsummer sun
-                      {bed.lightOverride ? " · override" : ""}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-            {garden.beds.length === 0 ? <li className="text-ink/60">No beds yet.</li> : null}
-          </ul>
-        </div>
-        {activeBed ? (
-          <BedColours
-            color={activeBed.color}
-            onColour={(color) => setBedColour(activeBed.id, color)}
-          />
-        ) : null}
-        {activeBed && activeLight ? (
-          <label className="block text-sm">
-            Light for {activeBed.name}
-            <select
-              className="mt-1 w-full rounded-md border border-line bg-card px-2 py-2"
-              value={activeBed.lightOverride ?? "calculated"}
-              onChange={(event) => {
-                const value = event.target.value;
-                const lightOverride = value === "calculated" ? null : (value as SunLevel);
-                update((current) => ({
-                  ...current,
-                  beds: current.beds.map((bed) =>
-                    bed.id === activeBed.id ? { ...bed, lightOverride } : bed,
-                  ),
-                }));
-              }}
-            >
-              <option value="calculated">
-                Use the sun calculation ({SUN_LABEL[activeLight.light]})
-              </option>
-              {SUN_LEVELS.map((level) => (
-                <option key={level} value={level}>
-                  Override: {SUN_LABEL[level]}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        <p className="text-sm">
-          <Link
-            to="/gardens/$gardenId/jobs"
-            params={{ gardenId: garden.id }}
-            className="text-leaf underline"
-          >
-            {jobCount === 0
-              ? "Jobs will appear once you place plants"
-              : `${jobCount} jobs this year`}
-          </Link>
-        </p>
-        {garden.attribution || (garden.boundary && garden.boundary.length >= 3) ? (
-          <details className="text-xs text-ink/50">
-            <summary className="cursor-pointer">Sources</summary>
-            {garden.boundary && garden.boundary.length >= 3 ? (
-              <p className="mt-1">
-                Property outline from HM Land Registry. It is the indicative freehold extent, not
-                the legal title.
+            {garden.showShade !== false ? (
+              <p className="text-xs text-ink/60">
+                Shadows show where shade falls in the middle of this month.
               </p>
             ) : null}
-            {garden.attribution ? <p className="mt-1">{garden.attribution}</p> : null}
-          </details>
+            {view === "plan" ? (
+              <p className="text-xs leading-snug text-ink/60">
+                Scroll to zoom. Drag empty ground to move around. Double-click to centre the plan.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        {panel === "beds" ? (
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-lg">Beds</h2>
+                <label className="flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={garden.showBedNames ?? false}
+                    onChange={(event) =>
+                      update((current) => ({
+                        ...current,
+                        showBedNames: event.target.checked,
+                      }))
+                    }
+                  />
+                  Show names
+                </label>
+              </div>
+              <ul className="mt-2 space-y-2 text-sm">
+                {garden.beds.map((bed) => {
+                  const points = adjust?.bedId === bed.id ? adjust.points : bed.points;
+                  const light = resolvedLight({ ...bed, points }, samples, garden.blocks);
+                  const menuOpen = menu?.kind === "bed" && menu.id === bed.id;
+                  return (
+                    <li key={bed.id} className="flex items-start gap-1">
+                      <button
+                        className="min-w-0 flex-1 text-left"
+                        type="button"
+                        onClick={() => {
+                          setSelectedBedId(bed.id);
+                          setSelectedBlockId(null);
+                        }}
+                      >
+                        <span className="flex items-center gap-2 font-medium">
+                          <span
+                            className="inline-block h-3 w-3 shrink-0 rounded-full border border-line"
+                            style={{ background: bedColour(bed.color) }}
+                          />
+                          {bed.name}
+                        </span>
+                        <span className="block text-ink/70">
+                          {bedSize(points, units.unit)} · {SUN_LABEL[light.light]} ·{" "}
+                          {light.hours.toFixed(1)} h of midsummer sun
+                          {bed.lightOverride ? " · override" : ""}
+                        </span>
+                      </button>
+                      <button
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line text-ink/70 hover:border-leaf pointer-fine:h-8 pointer-fine:w-8"
+                        type="button"
+                        aria-label={`Settings for ${bed.name}`}
+                        aria-expanded={menuOpen}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          if (menuOpen) {
+                            setMenu(null);
+                            return;
+                          }
+                          const rect = event.currentTarget.getBoundingClientRect();
+                          openMenu(
+                            {
+                              clientX: rect.left,
+                              clientY: rect.bottom + 4,
+                              preventDefault() {},
+                            },
+                            { kind: "bed", id: bed.id },
+                          );
+                        }}
+                      >
+                        <SettingsIcon />
+                      </button>
+                    </li>
+                  );
+                })}
+                {garden.beds.length === 0 ? <li className="text-ink/60">No beds yet.</li> : null}
+              </ul>
+            </div>
+            <p className="text-sm">
+              <Link
+                to="/gardens/$gardenId/jobs"
+                params={{ gardenId: garden.id }}
+                className="text-leaf underline"
+              >
+                {jobCount === 0
+                  ? "Jobs will appear once you place plants"
+                  : `${jobCount} jobs this year`}
+              </Link>
+            </p>
+            {garden.attribution || (garden.boundary && garden.boundary.length >= 3) ? (
+              <details className="text-xs text-ink/50">
+                <summary className="cursor-pointer">Sources</summary>
+                {garden.boundary && garden.boundary.length >= 3 ? (
+                  <p className="mt-1">
+                    Property outline from HM Land Registry. It is the indicative freehold extent,
+                    not the legal title.
+                  </p>
+                ) : null}
+                {garden.attribution ? <p className="mt-1">{garden.attribution}</p> : null}
+              </details>
+            ) : null}
+          </div>
+        ) : null}
+        {panel === "plants" ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-xl">{activeBed ? `For ${activeBed.name}` : "Plants"}</h2>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={garden.showUnsuitable}
+                  onChange={(event) =>
+                    update((current) => ({
+                      ...current,
+                      showUnsuitable: event.target.checked,
+                    }))
+                  }
+                />
+                Show unsuitable
+              </label>
+            </div>
+            <p className="text-xs text-ink/60">{aspectNote(garden.site.aspect)}</p>
+            <div className="flex flex-wrap gap-1">
+              {PLANT_GROUPS.map((group) => (
+                <button
+                  key={group}
+                  type="button"
+                  className={`rounded-full border px-3 py-1 text-sm ${
+                    plantGroup === group
+                      ? "border-leaf bg-leaf text-white"
+                      : "border-line bg-card text-ink hover:border-leaf"
+                  }`}
+                  onClick={() => setPlantGroup(group)}
+                >
+                  {GROUP_LABEL[group]}
+                </button>
+              ))}
+            </div>
+            {!activeBed ? (
+              <p className="text-sm">Draw a bed to see plants that fit its sun and your soil.</p>
+            ) : recommendations.length === 0 ? (
+              <p className="text-sm text-ink/60">Nothing in this list suits this bed.</p>
+            ) : null}
+            <ul className="space-y-2">
+              {recommendations.map((verdict) => (
+                <li key={verdict.plant.id} className="rounded-md border border-line bg-card p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <Link
+                        to="/plants/$plantId"
+                        params={{ plantId: verdict.plant.id }}
+                        className="font-medium hover:text-leaf"
+                      >
+                        {verdict.plant.commonName}
+                      </Link>
+                      <p className="text-xs text-ink/60">
+                        {KIND_LABEL[verdict.plant.kind]} · {verdict.plant.hardiness}
+                      </p>
+                    </div>
+                    {verdict.suitable && activeBed ? (
+                      <div className="flex shrink-0 gap-1">
+                        <button
+                          className={`${quietButtonClass} px-3`}
+                          type="button"
+                          onClick={() => setArmedPlantId(verdict.plant.id)}
+                        >
+                          Place
+                        </button>
+                        <button
+                          className={`${quietButtonClass} px-3`}
+                          type="button"
+                          title={`${units.spacing(plantingSpacing(verdict.plant.spreadM))} apart`}
+                          aria-label={`Fill ${activeBed.name} with ${verdict.plant.commonName}, ${units.spacing(plantingSpacing(verdict.plant.spreadM))} apart`}
+                          onClick={() => fillBed(verdict.plant)}
+                        >
+                          Fill
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                  {verdict.suitable ? null : (
+                    <ul className="mt-2 list-disc pl-4 text-xs text-clay">
+                      {verdict.reasons.map((reason) => (
+                        <li key={reason}>{reason}</li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {garden.placements.length > 0 ? (
+              <div className="space-y-3">
+                <h2 className="flex items-baseline justify-between text-lg">
+                  Planted
+                  <span className="text-sm font-normal text-ink/60">
+                    {garden.placements.length}
+                  </span>
+                </h2>
+                {activeBed ? (
+                  <div>
+                    <h3 className="flex items-baseline justify-between text-base">
+                      {activeBed.name}
+                      <span className="text-sm font-normal text-ink/60">
+                        {bedPlacements.length}
+                      </span>
+                    </h3>
+                    {bedGroups.length === 0 ? (
+                      <p className="mt-1 text-sm text-ink/60">Nothing planted in this bed.</p>
+                    ) : (
+                      <PlantedGroups
+                        groups={bedGroups}
+                        month={month}
+                        scope={activeBed.name}
+                        onRemove={(plantId) => removePlantsOf(plantId, activeBed.id)}
+                      />
+                    )}
+                  </div>
+                ) : null}
+                {otherPlacements.length > 0 ? (
+                  <div>
+                    <h3 className="flex items-baseline justify-between text-base">
+                      All beds
+                      <span className="text-sm font-normal text-ink/60">
+                        {garden.placements.length}
+                      </span>
+                    </h3>
+                    <PlantedGroups
+                      groups={groupPlantings(garden.placements)}
+                      month={month}
+                      onRemove={(plantId) => removePlantsOf(plantId)}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         ) : null}
       </aside>
 
       <div
-        className="relative h-[70vh] min-h-[28rem] lg:sticky lg:top-0 lg:h-[calc(100vh-4.25rem)] lg:self-start"
+        className={`relative order-1 shrink-0 lg:order-2 lg:h-auto lg:min-h-0 lg:flex-1 max-lg:landscape:h-auto max-lg:landscape:min-h-0 max-lg:landscape:shrink max-lg:landscape:flex-1 ${panelExpanded ? "h-0 max-lg:portrait:hidden lg:h-auto" : "h-[45vh]"}`}
         onContextMenu={(event) => {
           const hit = shapeAt(event);
           if (!hit) {
@@ -1603,134 +1801,6 @@ function DesignerBody({
         />
       </div>
 
-      <aside className="space-y-3 border-t border-line p-4 lg:border-t-0 lg:border-l">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-xl">{activeBed ? `For ${activeBed.name}` : "Plants"}</h2>
-          <label className="flex items-center gap-2 text-xs">
-            <input
-              type="checkbox"
-              checked={garden.showUnsuitable}
-              onChange={(event) =>
-                update((current) => ({
-                  ...current,
-                  showUnsuitable: event.target.checked,
-                }))
-              }
-            />
-            Show unsuitable
-          </label>
-        </div>
-        <p className="text-xs text-ink/60">{aspectNote(garden.site.aspect)}</p>
-        <div className="flex flex-wrap gap-1">
-          {PLANT_GROUPS.map((group) => (
-            <button
-              key={group}
-              type="button"
-              className={`rounded-full border px-3 py-1 text-sm ${
-                plantGroup === group
-                  ? "border-leaf bg-leaf text-white"
-                  : "border-line bg-card text-ink hover:border-leaf"
-              }`}
-              onClick={() => setPlantGroup(group)}
-            >
-              {GROUP_LABEL[group]}
-            </button>
-          ))}
-        </div>
-        {!activeBed ? (
-          <p className="text-sm">Draw a bed to see plants that fit its sun and your soil.</p>
-        ) : recommendations.length === 0 ? (
-          <p className="text-sm text-ink/60">Nothing in this list suits this bed.</p>
-        ) : null}
-        <ul className="max-h-[70vh] space-y-2 overflow-auto">
-          {recommendations.map((verdict) => (
-            <li key={verdict.plant.id} className="rounded-md border border-line bg-card p-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <Link
-                    to="/plants/$plantId"
-                    params={{ plantId: verdict.plant.id }}
-                    className="font-medium hover:text-leaf"
-                  >
-                    {verdict.plant.commonName}
-                  </Link>
-                  <p className="text-xs text-ink/60">
-                    {KIND_LABEL[verdict.plant.kind]} · {verdict.plant.hardiness}
-                  </p>
-                </div>
-                {verdict.suitable && activeBed ? (
-                  <div className="flex shrink-0 gap-1">
-                    <button
-                      className={`${quietButtonClass} px-3`}
-                      type="button"
-                      onClick={() => setArmedPlantId(verdict.plant.id)}
-                    >
-                      Place
-                    </button>
-                    <button
-                      className={`${quietButtonClass} px-3`}
-                      type="button"
-                      title={`${units.spacing(plantingSpacing(verdict.plant.spreadM))} apart`}
-                      aria-label={`Fill ${activeBed.name} with ${verdict.plant.commonName}, ${units.spacing(plantingSpacing(verdict.plant.spreadM))} apart`}
-                      onClick={() => fillBed(verdict.plant)}
-                    >
-                      Fill
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-              {verdict.suitable ? null : (
-                <ul className="mt-2 list-disc pl-4 text-xs text-clay">
-                  {verdict.reasons.map((reason) => (
-                    <li key={reason}>{reason}</li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
-        {garden.placements.length > 0 ? (
-          <div className="space-y-3">
-            <h2 className="flex items-baseline justify-between text-lg">
-              Planted
-              <span className="text-sm font-normal text-ink/60">{garden.placements.length}</span>
-            </h2>
-            {activeBed ? (
-              <div>
-                <h3 className="flex items-baseline justify-between text-base">
-                  {activeBed.name}
-                  <span className="text-sm font-normal text-ink/60">{bedPlacements.length}</span>
-                </h3>
-                {bedGroups.length === 0 ? (
-                  <p className="mt-1 text-sm text-ink/60">Nothing planted in this bed.</p>
-                ) : (
-                  <PlantedGroups
-                    groups={bedGroups}
-                    month={month}
-                    scope={activeBed.name}
-                    onRemove={(plantId) => removePlantsOf(plantId, activeBed.id)}
-                  />
-                )}
-              </div>
-            ) : null}
-            {otherPlacements.length > 0 ? (
-              <div>
-                <h3 className="flex items-baseline justify-between text-base">
-                  All beds
-                  <span className="text-sm font-normal text-ink/60">
-                    {garden.placements.length}
-                  </span>
-                </h3>
-                <PlantedGroups
-                  groups={groupPlantings(garden.placements)}
-                  month={month}
-                  onRemove={(plantId) => removePlantsOf(plantId)}
-                />
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </aside>
       {menu ? (
         <ShapeMenu
           menu={menu}
@@ -2204,7 +2274,7 @@ function BedHandle({
   }
   return (
     <button
-      className="group absolute z-20 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full border border-white bg-leaf text-white shadow active:cursor-grabbing"
+      className="group absolute z-20 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full border border-white bg-leaf text-white shadow pointer-fine:h-7 pointer-fine:w-7 active:cursor-grabbing"
       style={{ left: at.x, top: at.y }}
       type="button"
       aria-label={label}
@@ -2240,7 +2310,7 @@ function BedHandle({
 function HandleIcon({ kind }: { kind: "rotate" | "scale" | "move" }) {
   const stroke = {
     viewBox: "0 0 16 16",
-    className: "h-3.5 w-3.5",
+    className: "h-5 w-5 pointer-fine:h-3.5 pointer-fine:w-3.5",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: 1.5,
@@ -2268,6 +2338,41 @@ function HandleIcon({ kind }: { kind: "rotate" | "scale" | "move" }) {
     <svg {...stroke}>
       <path d="M9.25 2.75h4v4M6.75 13.25h-4v-4" />
       <path d="m13.25 2.75-4.5 4.5M2.75 13.25l4.5-4.5" />
+    </svg>
+  );
+}
+
+function PanelCaret({ up }: { up: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      className={`h-5 w-5 ${up ? "" : "rotate-180"}`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="m4 10 4-4 4 4" />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      className="h-4 w-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="8" cy="8" r="2.25" />
+      <path d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5M3.6 3.6l1.05 1.05M11.35 11.35l1.05 1.05M3.6 12.4l1.05-1.05M11.35 4.65l1.05-1.05" />
     </svg>
   );
 }
