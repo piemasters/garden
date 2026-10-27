@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel a superseded run on the same branch so a pull request waits on the latest commit.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+  # Require this job in the main branch ruleset. It fails unless both suites pass.
+  ci:
+    name: CI
+    needs: [unit]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require unit and end-to-end tests
+        run: |
+          test "${{ needs.unit.result }}" = "success"
+          test "${{ needs.e2e.result }}" = "success"
+
+  deploy:
+    name: Deploy to Netlify
+    needs: [ci]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Deploy to Netlify
+        run: |
+          test -n "$NETLIFY_AUTH_TOKEN" || { echo "Add the NETLIFY_AUTH_TOKEN repository secret."; exit 1; }
+          test -n "$NETLIFY_SITE_ID" || { echo "Add the NETLIFY_SITE_ID repository secret."; exit 1; }
+          pnpm dlx netlify-cli@27.14.0 deploy --build --prod
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
