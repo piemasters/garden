@@ -27,7 +27,7 @@ const config = defineConfig({
     tailwindcss(),
     tanstackStart(),
     viteReact(),
-    netlify(),
+    netlify({ dev: { edgeFunctions: { enabled: false } } }),
   ]),
 });
 
