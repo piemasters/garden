@@ -4,7 +4,4 @@ publish = "dist/client"
 
 [functions]
 node_bundler = "esbuild"
-js_format = "esm"
-
-[functions.server]
 external_node_modules = ["three"]
