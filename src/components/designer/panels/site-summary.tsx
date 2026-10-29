@@ -101,7 +101,8 @@ export function SiteSummary({
           ) : null}
           {view === "plan" ? (
             <p className="text-xs leading-snug text-ink/60">
-              Scroll to zoom. Drag empty ground to move around. Double-click to centre the plan.
+              Pinch or scroll to zoom. Drag empty ground to move around. Double-click to centre the
+              plan.
             </p>
           ) : null}
           {attribution || hasOutline ? (
