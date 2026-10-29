@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import type * as Leaflet from "leaflet";
-import { fromLocalMetres, smallestOutlineAt, toLocalMetres } from "../domain/geometry";
-import type { AddressChoice } from "../server/site";
-import { buttonClass, quietButtonClass } from "./chrome";
+import type {
+  Map as LeafletMap,
+  TileLayer as LeafletTileLayer,
+  Polygon as LeafletPolygon,
+  LatLngExpression as LeafletLatLngExpression,
+} from "leaflet";
+import type { AddressChoice } from "#/server/site";
+import { fromLocalMetres, smallestOutlineAt, toLocalMetres } from "#/domain/geometry";
+import { loadLeaflet } from "#/domain/leaflet";
+import { Button } from "#/components/generic/button";
 
 const FILLS = [
   "#6f8f72",
@@ -14,17 +20,6 @@ const FILLS = [
   "#d08c60",
   "#5c6b4a",
 ];
-
-type LeafletModule = typeof import("leaflet");
-
-async function loadLeaflet(): Promise<LeafletModule> {
-  const loaded = (await import("leaflet")) as LeafletModule & {
-    default?: LeafletModule;
-  };
-  if (typeof loaded.map === "function") return loaded;
-  if (loaded.default && typeof loaded.default.map === "function") return loaded.default;
-  return loaded;
-}
 
 export function PlotMap({
   choices,
@@ -47,9 +42,9 @@ export function PlotMap({
 }) {
   const container = useRef<HTMLDivElement>(null);
   const layers = useRef<{
-    map?: Leaflet.Map;
-    aerial?: Leaflet.TileLayer;
-    streets?: Leaflet.TileLayer;
+    map?: LeafletMap;
+    aerial?: LeafletTileLayer;
+    streets?: LeafletTileLayer;
   }>({});
   const renderRef = useRef<(next: AddressChoice[], fit: boolean) => void>(() => {});
   const choicesRef = useRef(choices);
@@ -71,7 +66,7 @@ export function PlotMap({
     const element = container.current;
     if (!element) return;
     let disposed = false;
-    let map: Leaflet.Map | undefined;
+    let map: LeafletMap | undefined;
     let frame = 0;
     setMapError(null);
 
@@ -101,6 +96,7 @@ export function PlotMap({
         (baseRef.current === "streets" ? streets : aerial).addTo(view);
 
         let lastPick = 0;
+
         const choose = (choice: AddressChoice) => {
           if (disabledRef.current) return;
           const now = Date.now();
@@ -111,8 +107,8 @@ export function PlotMap({
 
         const render = (next: AddressChoice[], fit: boolean) => {
           plots.clearLayers();
-          const positions: Leaflet.LatLngExpression[] = [];
-          let highlighted: Leaflet.Polygon | undefined;
+          const positions: LeafletLatLngExpression[] = [];
+          let highlighted: LeafletPolygon | undefined;
           for (const [index, choice] of next.entries()) {
             const ring = ringFor(choice, originLatitude, originLongitude);
             if (choice.outline && choice.outline.length >= 3) {
@@ -243,24 +239,22 @@ export function PlotMap({
   return (
     <div className="space-y-2">
       <div className="flex gap-2">
-        <button
-          className={base === "aerial" ? buttonClass : quietButtonClass}
-          type="button"
+        <Button
+          variant={base === "aerial" ? "primary" : "secondary"}
           onClick={() => setBase("aerial")}
         >
           Aerial
-        </button>
-        <button
-          className={base === "streets" ? buttonClass : quietButtonClass}
-          type="button"
+        </Button>
+        <Button
+          variant={base === "streets" ? "primary" : "secondary"}
           onClick={() => setBase("streets")}
         >
           Streets
-        </button>
+        </Button>
       </div>
       <div
         ref={container}
-        className="z-0 h-[32rem] w-full overflow-hidden rounded-md border border-line"
+        className="z-0 h-128 w-full overflow-hidden rounded-md border border-line"
         role="application"
         aria-label="Map of freehold plots. Click empty ground to load plots there, or click a plot to import it."
       />
@@ -268,8 +262,8 @@ export function PlotMap({
       {mapError ? <p className="text-sm text-clay">{mapError}</p> : null}
       <p className="text-xs text-ink/60">
         {choices.some((choice) => choice.matched)
-          ? "The dark plot matches the address. Click it to confirm, or click another plot if it is wrong."
-          : "Click empty ground to load the freeholds around that spot, then click a coloured plot to import it."}
+          ? "The dark dot matches the address. Click it to confirm, or click another plot if it is wrong."
+          : "If your plot isn't highlighted, click on it to load the freeholds in that area, then select the coloured plot to import it."}
       </p>
       <details className="text-xs text-ink/50">
         <summary className="cursor-pointer">Map sources</summary>
