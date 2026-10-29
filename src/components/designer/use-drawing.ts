@@ -6,8 +6,8 @@ import {
   type FormEvent,
   type SetStateAction,
 } from "react";
-import { fillPoints, plantingSpacing } from "#/domain/geometry";
-import type { Garden, Plant, Point, ShadeBlock } from "#/domain/types";
+import { MAP_FILL_CAP, fillPoints, planFill, plantingSpacing } from "#/domain/geometry";
+import type { Garden, Placement, Plant, Point, ShadeBlock } from "#/domain/types";
 import { formatEntry } from "#/domain/units";
 import { addBedPreset, loadBedPresets, removeBedPreset, type BedPreset } from "#/lib/bed-presets";
 import { useUnits } from "#/lib/units";
@@ -184,28 +184,34 @@ export function useDrawing({
     const spacing = plantingSpacing(plant.spreadM);
     const occupied = garden.placements
       .filter((item) => item.bedId === activeBed.id)
-      .map((item) => {
-        const neighbour = plantsById.get(item.plantId);
-        return {
-          x: item.x,
-          y: item.y,
-          spacing: neighbour ? plantingSpacing(neighbour.spreadM) : spacing,
-        };
-      });
-    const spots = fillPoints(activeBed.points, spacing, occupied);
-    if (spots.length === 0) return;
+      .flatMap((item) => occupiedBy(item, activeBed.points, plantsById, spacing));
+    const plan = planFill(activeBed.points, spacing, occupied);
+    if (plan.count === 0) return;
+    const added =
+      plan.count > MAP_FILL_CAP
+        ? [
+            {
+              id: crypto.randomUUID(),
+              plantId: plant.id,
+              bedId: activeBed.id,
+              x: plan.points[0]?.x ?? 0,
+              y: plan.points[0]?.y ?? 0,
+              fill: true as const,
+              count: plan.count,
+              spacing,
+            },
+          ]
+        : plan.points.map((point) => ({
+            id: crypto.randomUUID(),
+            plantId: plant.id,
+            bedId: activeBed.id,
+            x: point.x,
+            y: point.y,
+            fill: true as const,
+          }));
     update((current) => ({
       ...current,
-      placements: [
-        ...current.placements,
-        ...spots.map((point) => ({
-          id: crypto.randomUUID(),
-          plantId: plant.id,
-          bedId: activeBed.id,
-          x: point.x,
-          y: point.y,
-        })),
-      ],
+      placements: [...current.placements, ...added],
     }));
     setSelectedBedId(activeBed.id);
     setSelectedPlacementId(null);
@@ -215,6 +221,7 @@ export function useDrawing({
 
   const session: DrawSession = {
     garden,
+    plantsById,
     update,
     view,
     units,
@@ -283,10 +290,32 @@ export function useDrawing({
     adjust?.block && adjust.block.id === block.id ? adjust.block : block,
   );
   const editingBlock = shownBlocks.find((block) => block.id === selectedBlockId) ?? null;
-  const shownPlacements = garden.placements.map((placement) => {
-    const moved = adjust?.placements.find((item) => item.id === placement.id);
-    return moved ? { ...placement, x: moved.x, y: moved.y } : placement;
-  });
+  const shownPlacements = adjust?.replacePlacements
+    ? [
+        ...garden.placements.filter((placement) => placement.bedId !== adjust.bedId),
+        ...adjust.placements.flatMap((placement) => {
+          const plantId =
+            placement.plantId ??
+            garden.placements.find((item) => item.id === placement.id)?.plantId;
+          if (!plantId) return [];
+          return [
+            {
+              id: placement.id,
+              plantId,
+              bedId: adjust.bedId,
+              x: placement.x,
+              y: placement.y,
+              fill: placement.fill,
+              count: placement.count,
+              spacing: placement.spacing,
+            },
+          ];
+        }),
+      ]
+    : garden.placements.map((placement) => {
+        const moved = adjust?.placements.find((item) => item.id === placement.id);
+        return moved ? { ...placement, x: moved.x, y: moved.y } : placement;
+      });
 
   return {
     tool,
@@ -323,3 +352,27 @@ export function useDrawing({
 }
 
 export type Drawing = ReturnType<typeof useDrawing>;
+
+function occupiedBy(
+  item: Placement,
+  bedPoints: Point[],
+  plantsById: Map<string, Plant>,
+  fallback: number,
+): { x: number; y: number; spacing: number }[] {
+  if (item.fill && item.spacing && (item.count ?? 1) > MAP_FILL_CAP) {
+    const spacing = item.spacing;
+    return fillPoints(bedPoints, spacing).map((point) => ({
+      x: point.x,
+      y: point.y,
+      spacing,
+    }));
+  }
+  const neighbour = plantsById.get(item.plantId);
+  return [
+    {
+      x: item.x,
+      y: item.y,
+      spacing: neighbour ? plantingSpacing(neighbour.spreadM) : fallback,
+    },
+  ];
+}

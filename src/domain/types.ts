@@ -115,6 +115,12 @@ export interface Placement {
   bedId: string;
   x: number;
   y: number;
+  /** Placed by Fill, so a resized bed lays this plant out again at its spacing. */
+  fill?: boolean;
+  /** Plants this one record stands for, when a fill is too large to draw in full. */
+  count?: number;
+  /** Spacing of that fill, so the plan can draw a sample. */
+  spacing?: number;
 }
 
 export interface GardenSite {

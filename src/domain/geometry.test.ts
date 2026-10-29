@@ -7,6 +7,9 @@ import {
   pointInBlock,
   distance,
   fillPoints,
+  MAP_FILL_CAP,
+  placeFills,
+  planFill,
   finishedStroke,
   formatSpacing,
   formatBearing,
@@ -41,12 +44,7 @@ describe("map coordinates", () => {
   it("converts a local point back to the same latitude and longitude", () => {
     const originLatitude = 51.14;
     const originLongitude = -0.47;
-    const local = toLocalMetres(
-      51.141,
-      -0.469,
-      originLatitude,
-      originLongitude,
-    );
+    const local = toLocalMetres(51.141, -0.469, originLatitude, originLongitude);
     const geographic = fromLocalMetres(local, originLatitude, originLongitude);
     expect(geographic.latitude).toBeCloseTo(51.141, 8);
     expect(geographic.longitude).toBeCloseTo(-0.469, 8);
@@ -114,11 +112,7 @@ describe("drawing sizes", () => {
   });
 
   it("builds a rectangle out from an angled side", () => {
-    const rect = angledRectangle(
-      { x: 0, y: 0 },
-      { x: 4, y: 0 },
-      { x: 1, y: 2.2 },
-    );
+    const rect = angledRectangle({ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 1, y: 2.2 });
     expect(rect?.width).toBe(2);
     expect(rect?.depth).toBe(4);
     expect(rect?.points[2]).toEqual({ x: 4, y: 2 });
@@ -161,12 +155,8 @@ describe("drawing sizes", () => {
   });
 
   it("rotates and scales a shape around its centre", () => {
-    expect(rotatePoints([{ x: 2, y: 1 }], { x: 1, y: 1 }, Math.PI / 2)).toEqual(
-      [{ x: 1, y: 2 }],
-    );
-    expect(scalePoints([{ x: 3, y: 1 }], { x: 1, y: 1 }, 2)).toEqual([
-      { x: 5, y: 1 },
-    ]);
+    expect(rotatePoints([{ x: 2, y: 1 }], { x: 1, y: 1 }, Math.PI / 2)).toEqual([{ x: 1, y: 2 }]);
+    expect(scalePoints([{ x: 3, y: 1 }], { x: 1, y: 1 }, 2)).toEqual([{ x: 5, y: 1 }]);
     expect(formatTurn(Math.PI / 12)).toBe("+15°");
     expect(formatTurn(-Math.PI / 18)).toBe("-10°");
     expect(snapScale(1)).toBe(1);
@@ -185,9 +175,7 @@ describe("drawing sizes", () => {
     const handles = adjustHandles(square);
     expect(handles?.turn.y).toBeGreaterThan(2);
     expect(handles?.turn.x).toBeCloseTo(1, 3);
-    expect(
-      distance(handles?.resize ?? { x: 1, y: 1 }, { x: 1, y: 1 }),
-    ).toBeGreaterThan(Math.SQRT2);
+    expect(distance(handles?.resize ?? { x: 1, y: 1 }, { x: 1, y: 1 })).toBeGreaterThan(Math.SQRT2);
   });
 
   it("moves a shape on the half-metre grid", () => {
@@ -195,9 +183,7 @@ describe("drawing sizes", () => {
       x: 0.5,
       y: -1,
     });
-    expect(translatePoints([{ x: 1, y: 2 }], { x: 0.5, y: -1 })).toEqual([
-      { x: 1.5, y: 1 },
-    ]);
+    expect(translatePoints([{ x: 1, y: 2 }], { x: 0.5, y: -1 })).toEqual([{ x: 1.5, y: 1 }]);
     expect(formatOffset({ x: 0, y: 0 })).toBe("0 m");
     expect(formatOffset({ x: 0.5, y: -1 })).toBe("1 m south · 0.5 m east");
   });
@@ -217,16 +203,68 @@ describe("drawing sizes", () => {
     expect(fillPoints(square, 1, [{ x: 1, y: 1, spacing: 1 }])).toEqual([]);
     const packed = fillPoints(square, 0.5);
     expect(packed.length).toBeGreaterThan(4);
-    for (const point of packed)
-      expect(pointInPolygon(point, square)).toBe(true);
+    for (const point of packed) expect(pointInPolygon(point, square)).toBe(true);
     for (let index = 0; index < packed.length; index += 1) {
       for (let other = index + 1; other < packed.length; other += 1) {
         const left = packed[index];
         const right = packed[other];
-        if (left && right)
-          expect(distance(left, right)).toBeGreaterThanOrEqual(0.49);
+        if (left && right) expect(distance(left, right)).toBeGreaterThanOrEqual(0.49);
       }
     }
+  });
+
+  it("keeps the plant spacing when a larger bed is filled", () => {
+    const spacing = 0.25;
+    const small = [
+      { x: 0, y: 0 },
+      { x: 2, y: 0 },
+      { x: 2, y: 2 },
+      { x: 0, y: 2 },
+    ];
+    const large = [
+      { x: 0, y: 0 },
+      { x: 6, y: 0 },
+      { x: 6, y: 4 },
+      { x: 0, y: 4 },
+    ];
+    const few = fillPoints(small, spacing);
+    const many = fillPoints(large, spacing);
+    expect(many.length).toBeGreaterThan(few.length);
+    expect(many.length).toBeGreaterThan(160);
+    let nearest = Infinity;
+    for (let index = 0; index < many.length; index += 1) {
+      for (let other = index + 1; other < many.length; other += 1) {
+        const left = many[index];
+        const right = many[other];
+        if (!left || !right) continue;
+        nearest = Math.min(nearest, distance(left, right));
+        expect(distance(left, right)).toBeGreaterThanOrEqual(spacing - 0.02);
+      }
+    }
+    expect(nearest).toBeLessThan(spacing + 0.02);
+    const again = placeFills(large, [], [{ plantId: "tulip", spacing }]);
+    expect(again.length).toBe(many.length);
+  });
+
+  it("counts every plant in a large fill and keeps a sample to draw", () => {
+    const spacing = 0.25;
+    const bed = [
+      { x: 0, y: 0 },
+      { x: 12, y: 0 },
+      { x: 12, y: 8 },
+      { x: 0, y: 8 },
+    ];
+    const full = fillPoints(bed, spacing);
+    const plan = planFill(bed, spacing);
+    expect(full.length).toBeGreaterThan(MAP_FILL_CAP);
+    expect(plan.count).toBe(full.length);
+    expect(plan.points).toHaveLength(MAP_FILL_CAP);
+    for (const point of plan.points) expect(pointInPolygon(point, bed)).toBe(true);
+    const first = plan.points[0];
+    const last = plan.points[plan.points.length - 1];
+    if (first && last) expect(distance(first, last)).toBeGreaterThan(5);
+    const taken = full.map((point) => ({ ...point, spacing }));
+    expect(fillPoints(bed, spacing, taken)).toEqual([]);
   });
 
   it("keeps a shade block's size when its corners are turned", () => {
@@ -239,11 +277,7 @@ describe("drawing sizes", () => {
       height: 1.8,
       source: "user",
     };
-    const turned = rotatePoints(
-      blockCorners(block),
-      { x: block.x, y: block.y },
-      Math.PI / 2,
-    );
+    const turned = rotatePoints(blockCorners(block), { x: block.x, y: block.y }, Math.PI / 2);
     const next = blockFromCorners(block, turned);
     expect(next.width).toBeCloseTo(4);
     expect(next.depth).toBeCloseTo(0.2);

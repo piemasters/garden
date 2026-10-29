@@ -152,7 +152,13 @@ function isPlacement(value: unknown): boolean {
     typeof value.plantId === "string" &&
     typeof value.bedId === "string" &&
     isFiniteNumber(value.x) &&
-    isFiniteNumber(value.y)
+    isFiniteNumber(value.y) &&
+    (value.fill === undefined || typeof value.fill === "boolean") &&
+    (value.count === undefined ||
+      (isFiniteNumber(value.count) &&
+        value.count >= 1 &&
+        Math.floor(value.count) === value.count)) &&
+    (value.spacing === undefined || (isFiniteNumber(value.spacing) && value.spacing > 0))
   );
 }
 

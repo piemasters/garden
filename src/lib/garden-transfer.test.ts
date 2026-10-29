@@ -73,6 +73,30 @@ describe("garden transfer", () => {
         }),
       ).ok,
     ).toBe(false);
+    const counted = readGardenFile(
+      JSON.stringify({
+        kind: "uk-garden-planner.garden",
+        version: 1,
+        garden: {
+          ...garden,
+          placements: [{ ...garden.placements[0], fill: true, count: 25000, spacing: 0.25 }],
+        },
+      }),
+    );
+    expect(counted.ok).toBe(true);
+    if (counted.ok) expect(counted.garden.placements[0]?.count).toBe(25000);
+    expect(
+      readGardenFile(
+        JSON.stringify({
+          kind: "uk-garden-planner.garden",
+          version: 1,
+          garden: {
+            ...garden,
+            placements: [{ ...garden.placements[0], count: 0 }],
+          },
+        }),
+      ).ok,
+    ).toBe(false);
   });
 
   it("keeps a second copy when this browser already has that garden", () => {

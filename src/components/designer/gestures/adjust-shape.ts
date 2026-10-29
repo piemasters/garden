@@ -14,6 +14,10 @@ import {
   snapOffset,
   spanSize,
   translatePoints,
+  MAP_FILL_CAP,
+  fillPoints,
+  planFill,
+  plantingSpacing,
   snapAngle,
   snapScale,
 } from "#/domain/geometry";
@@ -204,7 +208,15 @@ export function adjustShape(
       basePoints: chosenBed.points,
       basePlacements: session.garden.placements
         .filter((item) => item.bedId === chosenBed.id)
-        .map((item) => ({ id: item.id, x: item.x, y: item.y })),
+        .map((item) => ({
+          id: item.id,
+          x: item.x,
+          y: item.y,
+          plantId: item.plantId,
+          fill: item.fill,
+          count: item.count,
+          spacing: item.spacing,
+        })),
       baseBlock: null,
       preview: null,
     };
@@ -212,7 +224,11 @@ export function adjustShape(
   }
   const gesture = session.adjustRef.current;
   if (!gesture) return;
-  const preview = attachBlock(session, gesture, previewAdjust(session.units, gesture, raw));
+  const preview = reflowScaledFill(
+    session,
+    gesture,
+    attachBlock(session, gesture, previewAdjust(session.units, gesture, raw)),
+  );
   if (phase === "move") {
     gesture.preview = preview;
     session.setAdjust(preview);
@@ -229,6 +245,43 @@ export function adjustShape(
     }));
     return;
   }
+  if (preview.replacePlacements) {
+    const kept = new Set(preview.placements.map((item) => item.id));
+    session.setSelectedPlacementId((current) => {
+      if (!current) return null;
+      const startedHere = gesture.basePlacements.some((item) => item.id === current);
+      if (!startedHere) return current;
+      return kept.has(current) ? current : null;
+    });
+    session.update((current) => ({
+      ...current,
+      beds: current.beds.map((item) =>
+        item.id === preview.bedId ? { ...item, points: preview.points } : item,
+      ),
+      placements: [
+        ...current.placements.filter((item) => item.bedId !== preview.bedId),
+        ...preview.placements.flatMap((item) => {
+          const plantId =
+            item.plantId ??
+            current.placements.find((placement) => placement.id === item.id)?.plantId;
+          if (!plantId) return [];
+          return [
+            {
+              id: item.id,
+              plantId,
+              bedId: preview.bedId,
+              x: item.x,
+              y: item.y,
+              fill: item.fill,
+              count: item.count,
+              spacing: item.spacing,
+            },
+          ];
+        }),
+      ],
+    }));
+    return;
+  }
   session.update((current) => ({
     ...current,
     beds: current.beds.map((item) =>
@@ -239,4 +292,83 @@ export function adjustShape(
       return moved ? { ...item, x: moved.x, y: moved.y } : item;
     }),
   }));
+}
+
+function reflowScaledFill(
+  session: DrawSession,
+  gesture: AdjustGesture,
+  preview: AdjustPreview,
+): AdjustPreview {
+  if (gesture.kind !== "scale" || gesture.target !== "bed") return preview;
+  const filled = gesture.basePlacements.filter((item) => item.fill && item.plantId);
+  if (filled.length === 0) return preview;
+  const manual = gesture.basePlacements.filter((item) => !item.fill);
+  const placed = new Map(preview.placements.map((item) => [item.id, item]));
+  const occupied = manual.flatMap((item) => {
+    const at = placed.get(item.id);
+    if (!at || !item.plantId) return [];
+    const plant = session.plantsById.get(item.plantId);
+    return [{ x: at.x, y: at.y, spacing: plant ? plantingSpacing(plant.spreadM) : 0.3 }];
+  });
+  const groups: { plantId: string; spacing: number }[] = [];
+  for (const item of filled) {
+    if (!item.plantId || groups.some((group) => group.plantId === item.plantId)) continue;
+    const plant = session.plantsById.get(item.plantId);
+    if (!plant) continue;
+    groups.push({ plantId: item.plantId, spacing: plantingSpacing(plant.spreadM) });
+  }
+  const spots = groups.flatMap((group, groupIndex) => {
+    const plan = planFill(preview.points, group.spacing, occupied);
+    if (plan.count > MAP_FILL_CAP) {
+      const id = idsForFill(gesture, group.plantId, 1)[0];
+      const anchor = plan.points[0];
+      if (groupIndex < groups.length - 1) {
+        for (const spot of fillPoints(preview.points, group.spacing, occupied)) {
+          occupied.push({ x: spot.x, y: spot.y, spacing: group.spacing });
+        }
+      }
+      return id && anchor
+        ? [
+            {
+              id,
+              plantId: group.plantId,
+              x: anchor.x,
+              y: anchor.y,
+              fill: true as const,
+              count: plan.count,
+              spacing: group.spacing,
+            },
+          ]
+        : [];
+    }
+    const ids = idsForFill(gesture, group.plantId, plan.points.length);
+    return plan.points.flatMap((spot, index) => {
+      const id = ids[index];
+      if (!id) return [];
+      occupied.push({ x: spot.x, y: spot.y, spacing: group.spacing });
+      return [{ id, plantId: group.plantId, x: spot.x, y: spot.y, fill: true as const }];
+    });
+  });
+  const kept = [
+    ...manual,
+    ...filled.filter(
+      (item) => item.plantId && !groups.some((group) => group.plantId === item.plantId),
+    ),
+  ].flatMap((item) => {
+    const at = placed.get(item.id);
+    return at ? [{ ...item, x: at.x, y: at.y }] : [];
+  });
+  return { ...preview, replacePlacements: true, placements: [...kept, ...spots] };
+}
+
+function idsForFill(gesture: AdjustGesture, plantId: string, count: number): string[] {
+  const owned = gesture.basePlacements
+    .filter((item) => item.fill && item.plantId === plantId)
+    .map((item) => item.id);
+  const spare = gesture.spareFillIds ?? {};
+  const extra = spare[plantId] ?? [];
+  while (owned.length + extra.length < count) extra.push(crypto.randomUUID());
+  spare[plantId] = extra;
+  gesture.spareFillIds = spare;
+  return [...owned, ...extra].slice(0, count);
 }

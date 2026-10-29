@@ -1,10 +1,11 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import type { Garden, Point, ShadeBlock } from "#/domain/types";
+import type { Garden, Plant, Point, ShadeBlock } from "#/domain/types";
 import type { useUnits } from "#/lib/units";
 import type { AdjustGesture, AdjustPreview, ShadePreset, Tool } from "../tools";
 
 export type DrawSession = {
   garden: Garden;
+  plantsById: Map<string, Plant>;
   update: (recipe: (current: Garden) => Garden) => void;
   view: "plan" | "orbit";
   units: ReturnType<typeof useUnits>;

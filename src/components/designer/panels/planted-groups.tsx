@@ -1,6 +1,6 @@
 import { getPlant } from "#/domain/plants";
 
-export function groupPlantings(placements: { plantId: string }[]) {
+export function groupPlantings(placements: { plantId: string; count?: number }[]) {
   const groups = new Map<
     string,
     { plant: NonNullable<ReturnType<typeof getPlant>>; count: number }
@@ -8,9 +8,10 @@ export function groupPlantings(placements: { plantId: string }[]) {
   for (const placement of placements) {
     const plant = getPlant(placement.plantId);
     if (!plant) continue;
+    const amount = placement.count ?? 1;
     const existing = groups.get(plant.id);
-    if (existing) existing.count += 1;
-    else groups.set(plant.id, { plant, count: 1 });
+    if (existing) existing.count += amount;
+    else groups.set(plant.id, { plant, count: amount });
   }
   return [...groups.values()].sort((a, b) => a.plant.commonName.localeCompare(b.plant.commonName));
 }

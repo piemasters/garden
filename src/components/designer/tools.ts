@@ -62,10 +62,22 @@ export type ShapeMenu = {
   fills?: boolean;
 };
 
+export type AdjustPlacement = {
+  id: string;
+  x: number;
+  y: number;
+  plantId?: string;
+  fill?: boolean;
+  count?: number;
+  spacing?: number;
+};
+
 export type AdjustPreview = {
   bedId: string;
   points: Point[];
-  placements: { id: string; x: number; y: number }[];
+  placements: AdjustPlacement[];
+  /** When set, these placements replace every plant in the bed. */
+  replacePlacements?: boolean;
   label: string;
   changed: boolean;
   block: ShadeBlock | null;
@@ -80,7 +92,9 @@ export type AdjustGesture = {
   startAngle: number;
   startDistance: number;
   basePoints: Point[];
-  basePlacements: { id: string; x: number; y: number }[];
+  basePlacements: AdjustPlacement[];
+  /** Ids created while a fill grows, kept for the rest of the drag. */
+  spareFillIds?: Record<string, string[]>;
   baseBlock: ShadeBlock | null;
   preview: AdjustPreview | null;
 };

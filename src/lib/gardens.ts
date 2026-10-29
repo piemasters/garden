@@ -1,12 +1,6 @@
-import type {
-  Aspect,
-  Exposure,
-  Garden,
-  Moisture,
-  PhLevel,
-  SoilType,
-} from "../domain/types";
+import type { Aspect, Exposure, Garden, Moisture, PhLevel, SoilType } from "../domain/types";
 import type { SiteLookup } from "../server/site";
+import { compactLargeFills } from "./fill-cap";
 
 type LocatedSite = Extract<SiteLookup, { ok: true }>;
 
@@ -74,11 +68,25 @@ export function loadGardens(): Garden[] {
   }
 }
 
+/** Load gardens and fold any saved fill that is too large to draw. */
+export function loadSettledGardens(): Garden[] {
+  const loaded = loadGardens();
+  let changed = false;
+  const settled = loaded.map((garden) => {
+    const next = compactLargeFills(garden);
+    if (next !== garden) changed = true;
+    return next;
+  });
+  if (changed) localStorage.setItem(KEY, JSON.stringify(settled));
+  return settled;
+}
+
 export function upsertGarden(garden: Garden): void {
-  const gardens = loadGardens();
-  const next = gardens.some((item) => item.id === garden.id)
-    ? gardens.map((item) => (item.id === garden.id ? garden : item))
-    : [garden, ...gardens];
+  const saved = compactLargeFills(garden);
+  const gardens = loadGardens().map((item) => compactLargeFills(item));
+  const next = gardens.some((item) => item.id === saved.id)
+    ? gardens.map((item) => (item.id === saved.id ? saved : item))
+    : [saved, ...gardens];
   localStorage.setItem(KEY, JSON.stringify(next));
 }
 

@@ -1,9 +1,57 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { MAP_FILL_CAP, planFill } from "#/domain/geometry";
 import type { Placement, Plant, Point } from "#/domain/types";
 import { groundHeight } from "./space";
+
+export function FillSample({
+  placement,
+  bedPoints,
+  slope,
+  lift,
+  plant,
+  month,
+  bedSelected,
+  onSelectBed,
+}: {
+  placement: Placement;
+  bedPoints: Point[];
+  slope: { east: number; north: number } | null;
+  lift: number;
+  plant: Plant;
+  month: number;
+  bedSelected: boolean;
+  onSelectBed: (id: string) => void;
+}) {
+  const spacing = placement.spacing ?? 0;
+  const points = useMemo(
+    () => (spacing > 0 ? planFill(bedPoints, spacing, [], MAP_FILL_CAP).points : []),
+    [bedPoints, spacing],
+  );
+  return (
+    <group>
+      {points.map((point, index) => (
+        <PlantMesh
+          key={`${placement.id}:${index}`}
+          placement={{ ...placement, x: point.x, y: point.y }}
+          slope={slope}
+          lift={lift}
+          plant={plant}
+          month={month}
+          selected={false}
+          bedSelected={bedSelected}
+          interactive={false}
+          onSelect={() => undefined}
+          onSelectBed={onSelectBed}
+          onDrag={() => undefined}
+          onDrop={() => undefined}
+        />
+      ))}
+    </group>
+  );
+}
 
 export function PlantMesh({
   placement,

@@ -1,9 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { GROUP_LABEL, KIND_LABEL } from "#/domain/labels";
-import { plantingSpacing } from "#/domain/geometry";
+import { MAP_FILL_CAP, plantingSpacing } from "#/domain/geometry";
 import { aspectNote, recommendPlants } from "#/domain/recommend";
 import { PLANT_GROUPS, type Aspect, type Placement, type PlantGroup } from "#/domain/types";
 import { useUnits } from "#/lib/units";
+import { plantedCount } from "#/lib/fill-cap";
 import {
   PlantFilterFields,
   plantListFilterIsSet,
@@ -150,13 +151,18 @@ export function PlantsPanel({
         <div className="space-y-3">
           <h2 className="flex items-baseline justify-between text-lg">
             Planted
-            <span className="text-sm font-normal text-ink/60">{placements.length}</span>
+            <span className="text-sm font-normal text-ink/60">{plantedCount(placements)}</span>
           </h2>
+          {placements.some((item) => (item.count ?? 1) > MAP_FILL_CAP) ? (
+            <p className="text-sm text-ink/60">The plan shows a sample of a large fill.</p>
+          ) : null}
           {activeBed ? (
             <div>
               <h3 className="flex items-baseline justify-between text-base">
                 {activeBed.name}
-                <span className="text-sm font-normal text-ink/60">{bedPlacements.length}</span>
+                <span className="text-sm font-normal text-ink/60">
+                  {plantedCount(bedPlacements)}
+                </span>
               </h3>
               {bedGroups.length === 0 ? (
                 <p className="mt-1 text-sm text-ink/60">Nothing planted in this bed.</p>
@@ -174,7 +180,7 @@ export function PlantsPanel({
             <div>
               <h3 className="flex items-baseline justify-between text-base">
                 All beds
-                <span className="text-sm font-normal text-ink/60">{placements.length}</span>
+                <span className="text-sm font-normal text-ink/60">{plantedCount(placements)}</span>
               </h3>
               <PlantedGroups
                 groups={groupPlantings(placements)}

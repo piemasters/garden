@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
-import { useGardenList } from "#/lib/use-garden";
+import { plantedCount } from "#/lib/fill-cap";
 import { loadGardens, upsertGarden } from "#/lib/gardens";
+import { useGardenList } from "#/lib/use-garden";
 import { downloadGarden, gardenForImport, readGardenFile } from "#/lib/garden-transfer";
 import { Link } from "@tanstack/react-router";
 import { Card } from "#/components/generic/card";
@@ -80,8 +81,8 @@ export const SavedGardens = () => {
                   {garden.site.name}
                 </Link>
                 <p className="text-sm text-ink/70 pb-2">
-                  {garden.site.postcode} · {garden.beds.length} beds · {garden.placements.length}{" "}
-                  plants
+                  {garden.site.postcode} · {garden.beds.length} beds ·{" "}
+                  {plantedCount(garden.placements)} plants
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">

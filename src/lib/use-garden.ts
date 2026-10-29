@@ -1,22 +1,23 @@
 import { useEffect, useState } from "react";
 import type { Garden } from "../domain/types";
-import { deleteGarden, loadGardens, upsertGarden } from "./gardens";
+import { compactLargeFills } from "./fill-cap";
+import { deleteGarden, loadSettledGardens, upsertGarden } from "./gardens";
 
 export function useGardenList() {
   const [ready, setReady] = useState(false);
   const [gardens, setGardens] = useState<Garden[]>([]);
 
   useEffect(() => {
-    setGardens(loadGardens());
+    setGardens(loadSettledGardens());
     setReady(true);
   }, []);
 
   const refresh = () => {
-    setGardens(loadGardens());
+    setGardens(loadSettledGardens());
   };
   const remove = (id: string) => {
     deleteGarden(id);
-    setGardens(loadGardens());
+    setGardens(loadSettledGardens());
   };
 
   return { ready, gardens, refresh, remove };
@@ -27,14 +28,14 @@ export function useGarden(id: string) {
   const [garden, setGarden] = useState<Garden | null>(null);
 
   useEffect(() => {
-    setGarden(loadGardens().find((item) => item.id === id) ?? null);
+    setGarden(loadSettledGardens().find((item) => item.id === id) ?? null);
     setReady(true);
   }, [id]);
 
   const update = (recipe: (current: Garden) => Garden) => {
     setGarden((current) => {
       if (!current) return current;
-      const next = { ...recipe(current), updatedAt: new Date().toISOString() };
+      const next = compactLargeFills({ ...recipe(current), updatedAt: new Date().toISOString() });
       upsertGarden(next);
       return next;
     });

@@ -3,7 +3,9 @@ import { Canvas } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { plotMetres } from "#/domain/boundary";
+import { MAP_FILL_CAP } from "#/domain/geometry";
 import { slopeGradient } from "#/domain/slope";
+import { placementsToDraw } from "#/lib/fill-cap";
 import { BedMesh, RAISED_BED_M, RAISED_LIP_M } from "./beds";
 import { BlockMesh } from "./blocks";
 import { BoundaryLine, GroundCoat, NorthMark, OrbitGround, PlanGround, PlotFill } from "./ground";
@@ -17,7 +19,7 @@ import {
   NameTracker,
   PlanScale,
 } from "./overlays";
-import { PlantMesh } from "./plants";
+import { FillSample, PlantMesh } from "./plants";
 import { CastShade } from "./shade";
 import { PLAN_CAMERA_POSITION, groundHeight, plotOutline, tiltForSlope } from "./space";
 import type { PlanControls, SceneProps } from "./types";
@@ -35,6 +37,7 @@ export function GardenScene(props: SceneProps) {
     setGrabbing: () => undefined,
     refit: () => undefined,
   });
+  const drawnPlacements = useMemo(() => placementsToDraw(props.placements), [props.placements]);
   return (
     <Canvas
       key={props.view}
@@ -194,20 +197,39 @@ export function GardenScene(props: SceneProps) {
         />
       ) : null}
       {props.blockDraft?.line ? <LineDraft block={props.blockDraft} slope={shadowSlope} /> : null}
-      {props.placements.map((placement) => {
+      {drawnPlacements.map((placement) => {
         const plant = props.plantsById.get(placement.plantId);
         if (!plant) return null;
+        const lift =
+          props.view === "orbit" &&
+          props.beds.some((bed) => bed.id === placement.bedId && bed.raised)
+            ? RAISED_BED_M - RAISED_LIP_M
+            : 0;
+        const bed =
+          placement.fill && placement.spacing && (placement.count ?? 1) > MAP_FILL_CAP
+            ? props.beds.find((item) => item.id === placement.bedId)
+            : undefined;
+        if (bed) {
+          return (
+            <FillSample
+              key={placement.id}
+              placement={placement}
+              bedPoints={bed.points}
+              slope={shadowSlope}
+              lift={lift}
+              plant={plant}
+              month={props.month}
+              bedSelected={placement.bedId === props.chosenBedId}
+              onSelectBed={props.onSelectBed}
+            />
+          );
+        }
         return (
           <PlantMesh
             key={placement.id}
             placement={placement}
             slope={shadowSlope}
-            lift={
-              props.view === "orbit" &&
-              props.beds.some((bed) => bed.id === placement.bedId && bed.raised)
-                ? RAISED_BED_M - RAISED_LIP_M
-                : 0
-            }
+            lift={lift}
             plant={plant}
             month={props.month}
             selected={placement.id === props.selectedPlacementId}

@@ -38,5 +38,12 @@ export {
   spanSize,
   translatePoints,
 } from "./draw";
-export { fillPoints, formatSpacing, plantingSpacing } from "./fill";
+export {
+  MAP_FILL_CAP,
+  fillPoints,
+  formatSpacing,
+  placeFills,
+  planFill,
+  plantingSpacing,
+} from "./fill";
 export { buildingHeight } from "./building-height";
