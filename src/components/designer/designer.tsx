@@ -42,6 +42,12 @@ import {
 } from "../../domain/labels";
 import { buildTimeline } from "../../domain/jobs";
 import { getPlant, PLANTS } from "../../domain/plants";
+import {
+  PlantFilterFields,
+  plantListFilterIsSet,
+  plantMatchesListFilter,
+  type PlantListFilter,
+} from "../plants/plant-filters";
 import { aspectNote, recommendPlants } from "../../domain/recommend";
 import { describeSlope } from "../../domain/slope";
 import { SURFACE_COLOR, SURFACE_LABEL, bedSurface, groundSurface } from "../../domain/surface";
@@ -204,6 +210,13 @@ function DesignerBody({
   const [presetError, setPresetError] = useState<string | null>(null);
   const shownUnit = useRef(units.unit);
   const [plantGroup, setPlantGroup] = useState<PlantGroup>("flower");
+  const [plantFilter, setPlantFilter] = useState<PlantListFilter>({
+    query: "",
+    kind: "all",
+    sun: "all",
+    hardiness: "all",
+    flowerColour: "all",
+  });
   const [preset, setPreset] = useState<{ width: number; depth: number } | null>(null);
   const [shadePreset, setShadePreset] = useState<(typeof SHADE_PRESETS)[number] | null>(null);
   const [draft, setDraft] = useState<Point[]>([]);
@@ -308,7 +321,9 @@ function DesignerBody({
   const activeLight = activeBed ? resolvedLight(activeBed, samples, garden.blocks) : null;
   const recommendations = activeLight
     ? recommendPlants(
-        PLANTS.filter((plant) => plant.group === plantGroup),
+        PLANTS.filter(
+          (plant) => plant.group === plantGroup && plantMatchesListFilter(plant, plantFilter),
+        ),
         garden.site,
         activeLight.light,
         garden.showUnsuitable,
@@ -1544,10 +1559,19 @@ function DesignerBody({
                 </button>
               ))}
             </div>
+            <PlantFilterFields
+              value={plantFilter}
+              onChange={setPlantFilter}
+              className="sm:grid-cols-1 lg:grid-cols-1"
+            />
             {!activeBed ? (
               <p className="text-sm">Draw a bed to see plants that fit its sun and your soil.</p>
             ) : recommendations.length === 0 ? (
-              <p className="text-sm text-ink/60">Nothing in this list suits this bed.</p>
+              <p className="text-sm text-ink/60">
+                {plantListFilterIsSet(plantFilter)
+                  ? "No plants match these filters."
+                  : "Nothing in this list suits this bed."}
+              </p>
             ) : null}
             <ul className="space-y-2">
               {recommendations.map((verdict) => (

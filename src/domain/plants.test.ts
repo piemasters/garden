@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { PLANTS } from "./plants";
+import { getPlant, hasFlowerColour, PLANTS } from "./plants";
 
 describe("plant catalog", () => {
   it("has a full record for each of 36 plants, bulbs and seeds", () => {
@@ -19,12 +19,22 @@ describe("plant catalog", () => {
     expect(PLANTS.filter((plant) => plant.kind === "bulb")).toHaveLength(12);
     expect(PLANTS.filter((plant) => plant.kind === "seed")).toHaveLength(12);
     expect(PLANTS.filter((plant) => plant.group === "flower")).toHaveLength(29);
-    expect(PLANTS.filter((plant) => plant.group === "vegetable")).toHaveLength(
-      6,
-    );
+    expect(PLANTS.filter((plant) => plant.group === "vegetable")).toHaveLength(6);
     expect(PLANTS.filter((plant) => plant.group === "fruit")).toHaveLength(1);
-    expect(PLANTS.some((plant) => plant.id === "tulipa-olympic-flame")).toBe(
-      true,
-    );
+    expect(PLANTS.some((plant) => plant.id === "tulipa-olympic-flame")).toBe(true);
+  });
+
+  it("matches a flower colour from the month notes", () => {
+    const tulip = getPlant("tulipa-olympic-flame");
+    const snowdrop = getPlant("galanthus-nivalis");
+    const bluebell = getPlant("hyacinthoides-non-scripta");
+    const queen = getPlant("tulipa-queen-of-night");
+    expect(tulip && hasFlowerColour(tulip, "yellow")).toBe(true);
+    expect(tulip && hasFlowerColour(tulip, "red")).toBe(true);
+    expect(tulip && hasFlowerColour(tulip, "white")).toBe(false);
+    expect(snowdrop && hasFlowerColour(snowdrop, "white")).toBe(true);
+    expect(bluebell && hasFlowerColour(bluebell, "blue")).toBe(true);
+    expect(bluebell && hasFlowerColour(bluebell, "purple")).toBe(true);
+    expect(queen && hasFlowerColour(queen, "red")).toBe(true);
   });
 });

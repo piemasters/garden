@@ -46,8 +46,7 @@ export const PLANTS: Plant[] = [
       "A tall Darwin hybrid tulip with pale yellow cups brushed in red flame. It flowers in mid to late spring and then dies back cleanly.",
     cultivation:
       "Plant bulbs 10–15 cm deep in autumn, in fertile soil that does not sit wet in winter. Shelter the stems from strong wind and let the leaves yellow before you remove them.",
-    pests:
-      "Slugs, aphids and squirrels can damage bulbs and buds. Poor drainage invites bulb rot.",
+    pests: "Slugs, aphids and squirrels can damage bulbs and buds. Poor drainage invites bulb rot.",
     soils: ["chalk", "loam", "sand"],
     moisture: ["well-drained"],
     ph: ["neutral", "alkaline"],
@@ -68,24 +67,21 @@ export const PLANTS: Plant[] = [
         day: 15,
         shift: "autumn",
         title: "Plant bulbs",
-        detail:
-          "Set Olympic Flame bulbs 10–15 cm deep, point upwards, in a well-drained bed.",
+        detail: "Set Olympic Flame bulbs 10–15 cm deep, point upwards, in a well-drained bed.",
       },
       {
         month: 4,
         day: 10,
         shift: "none",
         title: "Deadhead",
-        detail:
-          "Snap off faded flowers so the bulb is not spent on seed, and keep the leaves.",
+        detail: "Snap off faded flowers so the bulb is not spent on seed, and keep the leaves.",
       },
       {
         month: 5,
         day: 20,
         shift: "none",
         title: "Clear foliage",
-        detail:
-          "Remove leaves only once they yellow. Lift bulbs if the bed stays wet in summer.",
+        detail: "Remove leaves only once they yellow. Lift bulbs if the bed stays wet in summer.",
       },
     ],
   }),
@@ -99,8 +95,7 @@ export const PLANTS: Plant[] = [
       "A single late tulip with deep maroon, almost black, cups. It is one of the last tulips to flower and looks strongest against pale foliage.",
     cultivation:
       "Treat it as a spring display bulb: plant deeply in autumn and do not expect every bulb to return with the same strength the next year.",
-    pests:
-      "Squirrels dig newly planted bulbs. Tulip fire can mark leaves in a wet spring.",
+    pests: "Squirrels dig newly planted bulbs. Tulip fire can mark leaves in a wet spring.",
     soils: ["chalk", "loam", "sand"],
     moisture: ["well-drained"],
     ph: ["neutral", "alkaline"],
@@ -121,16 +116,14 @@ export const PLANTS: Plant[] = [
         day: 1,
         shift: "autumn",
         title: "Plant bulbs",
-        detail:
-          "Plant Queen of Night about 15 cm deep once the soil has cooled.",
+        detail: "Plant Queen of Night about 15 cm deep once the soil has cooled.",
       },
       {
         month: 4,
         day: 20,
         shift: "none",
         title: "Deadhead",
-        detail:
-          "Remove spent maroon cups and leave the foliage to feed the bulb.",
+        detail: "Remove spent maroon cups and leave the foliage to feed the bulb.",
       },
     ],
   }),
@@ -166,8 +159,7 @@ export const PLANTS: Plant[] = [
         day: 20,
         shift: "autumn",
         title: "Plant bulbs",
-        detail:
-          "Plant Tête-à-Tête about 10 cm deep. Water once if the soil is dust-dry.",
+        detail: "Plant Tête-à-Tête about 10 cm deep. Water once if the soil is dust-dry.",
       },
       {
         month: 4,
@@ -219,8 +211,7 @@ export const PLANTS: Plant[] = [
         day: 25,
         shift: "none",
         title: "Deadhead",
-        detail:
-          "Take off faded heads. The scent is strongest on a still, warm day.",
+        detail: "Take off faded heads. The scent is strongest on a still, warm day.",
       },
     ],
   }),
@@ -263,8 +254,7 @@ export const PLANTS: Plant[] = [
         day: 15,
         shift: "none",
         title: "Leave seedheads",
-        detail:
-          "The dried globes can stay for structure, or cut them before the seed scatters.",
+        detail: "The dried globes can stay for structure, or cut them before the seed scatters.",
       },
     ],
   }),
@@ -278,8 +268,7 @@ export const PLANTS: Plant[] = [
       "A slender late-winter crocus in pale lilac, happier in grass and gravel than the fat Dutch hybrids. It spreads by seed where it is left alone.",
     cultivation:
       "Plant corms in early autumn, 8 cm deep, where winter sun can reach the flowers. Avoid deep shade and waterlogged lawns.",
-    pests:
-      "Mice and squirrels take corms. Flowers close in dull weather and open in sun.",
+    pests: "Mice and squirrels take corms. Flowers close in dull weather and open in sun.",
     soils: ["chalk", "loam", "sand"],
     moisture: ["well-drained"],
     ph: ["neutral", "alkaline"],
@@ -308,8 +297,7 @@ export const PLANTS: Plant[] = [
         day: 20,
         shift: "none",
         title: "Let them seed",
-        detail:
-          "Leave the narrow leaves until they wither if you want the colony to thicken.",
+        detail: "Leave the narrow leaves until they wither if you want the colony to thicken.",
       },
     ],
   }),
@@ -323,8 +311,7 @@ export const PLANTS: Plant[] = [
       "The familiar winter snowdrop, with nodding white bells and a green mark on the inner petals. It does best in soil that stays cool and leafy.",
     cultivation:
       "Plant in the green after flowering, or as dry bulbs in autumn if they have not dried out. Light shade under deciduous shrubs suits them.",
-    pests:
-      "Squirrels disturb fresh plantings. Congested clumps can be split as the flowers fade.",
+    pests: "Squirrels disturb fresh plantings. Congested clumps can be split as the flowers fade.",
     soils: ["clay", "loam", "chalk"],
     moisture: ["moist", "well-drained"],
     ph: ["neutral", "alkaline"],
@@ -353,8 +340,7 @@ export const PLANTS: Plant[] = [
         day: 1,
         shift: "autumn",
         title: "Plant dry bulbs",
-        detail:
-          "If you plant dry bulbs, do it promptly in early autumn and water them in.",
+        detail: "If you plant dry bulbs, do it promptly in early autumn and water them in.",
       },
     ],
   }),
@@ -368,8 +354,7 @@ export const PLANTS: Plant[] = [
       "A woodland bulb with nodding, violet-blue bells on one side of an arching stem, and a light scent. It wants spring light and summer shade.",
     cultivation:
       "Plant bulbs in autumn under deciduous trees or on the shady side of a shrub. Keep it apart from Spanish bluebell if you want this form to stay true.",
-    pests:
-      "Trampling breaks the brittle leaves. It is otherwise undemanding in moist, leafy soil.",
+    pests: "Trampling breaks the brittle leaves. It is otherwise undemanding in moist, leafy soil.",
     soils: ["clay", "loam", "chalk"],
     moisture: ["moist"],
     ph: ["acid", "neutral"],
@@ -396,8 +381,7 @@ export const PLANTS: Plant[] = [
         day: 10,
         shift: "autumn",
         title: "Plant bulbs",
-        detail:
-          "Plant English bluebells 8–10 cm deep where the soil will not be regularly dug.",
+        detail: "Plant English bluebells 8–10 cm deep where the soil will not be regularly dug.",
       },
       {
         month: 5,
@@ -448,8 +432,7 @@ export const PLANTS: Plant[] = [
         day: 15,
         shift: "none",
         title: "Keep them dry later",
-        detail:
-          "After the narrow leaves fade, avoid heavy summer watering over the bulbs.",
+        detail: "After the narrow leaves fade, avoid heavy summer watering over the bulbs.",
       },
     ],
   }),
@@ -484,16 +467,14 @@ export const PLANTS: Plant[] = [
         day: 15,
         shift: "autumn",
         title: "Plant bulbs",
-        detail:
-          "Plant quamash 10 cm deep in soil that stays moist through spring.",
+        detail: "Plant quamash 10 cm deep in soil that stays moist through spring.",
       },
       {
         month: 6,
         day: 10,
         shift: "none",
         title: "Cut back",
-        detail:
-          "Remove faded spikes and yellowing leaves once the clump has finished.",
+        detail: "Remove faded spikes and yellowing leaves once the clump has finished.",
       },
     ],
   }),
@@ -507,8 +488,7 @@ export const PLANTS: Plant[] = [
       "A scented July lily with white trumpets, a yellow throat and a pink reverse. The stems need staking in exposed gardens, and the base prefers shade from neighbouring leaves.",
     cultivation:
       "Plant bulbs in autumn or early spring, 15 cm deep, with grit if the soil is heavy. A late frost can nip the shoot tips, so a sheltered spot is safer.",
-    pests:
-      "Lily beetle must be picked off by hand. Slugs take the emerging shoots.",
+    pests: "Lily beetle must be picked off by hand. Slugs take the emerging shoots.",
     soils: ["loam", "sand", "chalk"],
     moisture: ["well-drained"],
     ph: ["neutral", "alkaline"],
@@ -544,8 +524,7 @@ export const PLANTS: Plant[] = [
         day: 20,
         shift: "spring",
         title: "Watch for beetle",
-        detail:
-          "From spring, check leaves for red lily beetles and their dark grubs.",
+        detail: "From spring, check leaves for red lily beetles and their dark grubs.",
       },
       {
         month: 6,
@@ -587,16 +566,14 @@ export const PLANTS: Plant[] = [
         day: 25,
         shift: "autumn",
         title: "Soak and plant",
-        detail:
-          "Soak shrivelled aconite tubers overnight and plant them 5 cm deep.",
+        detail: "Soak shrivelled aconite tubers overnight and plant them 5 cm deep.",
       },
       {
         month: 2,
         day: 10,
         shift: "spring",
         title: "Split in the green",
-        detail:
-          "Lift and divide flowering clumps if you want to start a new patch.",
+        detail: "Lift and divide flowering clumps if you want to start a new patch.",
       },
     ],
   }),
@@ -655,8 +632,7 @@ export const PLANTS: Plant[] = [
         day: 15,
         shift: "none",
         title: "Deadhead",
-        detail:
-          "Cut faded clusters back to a leaf so the next flush is encouraged.",
+        detail: "Cut faded clusters back to a leaf so the next flush is encouraged.",
       },
     ],
   }),
@@ -681,26 +657,21 @@ export const PLANTS: Plant[] = [
     maturity: "A useful shrub in 1–2 years",
     heightM: [0.4, 0.6],
     spreadM: [0.5, 0.7],
-    months: year(
-      [{ from: 5, to: 7, flower: "purple", flowerHex: "#7a64b8", scent: true }],
-      true,
-    ),
+    months: year([{ from: 5, to: 7, flower: "purple", flowerHex: "#7a64b8", scent: true }], true),
     jobs: [
       {
         month: 3,
         day: 15,
         shift: "spring",
         title: "Plant",
-        detail:
-          "Set young lavender out in spring so the roots establish before winter wet.",
+        detail: "Set young lavender out in spring so the roots establish before winter wet.",
       },
       {
         month: 7,
         day: 25,
         shift: "none",
         title: "Shear after flowering",
-        detail:
-          "Trim faded spikes and the soft tips. Leave some green leaf on each stem.",
+        detail: "Trim faded spikes and the soft tips. Leave some green leaf on each stem.",
       },
     ],
   }),
@@ -745,8 +716,7 @@ export const PLANTS: Plant[] = [
         day: 5,
         shift: "none",
         title: "Water in dry spells",
-        detail:
-          "Soak the root area in a dry June so the flowerheads do not flop.",
+        detail: "Soak the root area in a dry June so the flowerheads do not flop.",
       },
     ],
   }),
@@ -760,8 +730,7 @@ export const PLANTS: Plant[] = [
       "An evergreen culinary shrub with needle leaves and small pale-blue flowers from late winter into spring. It needs sun and will not tolerate sitting in cold wet clay.",
     cultivation:
       "Plant in spring against a warm wall if your garden is exposed. Trim after flowering to keep it dense. Replace woody, bare plants rather than cutting them hard.",
-    pests:
-      "Rosemary beetle is the main pest. Cold wet winters kill more plants than frost alone.",
+    pests: "Rosemary beetle is the main pest. Cold wet winters kill more plants than frost alone.",
     soils: ["chalk", "loam", "sand"],
     moisture: ["well-drained"],
     ph: ["neutral", "alkaline"],
@@ -834,8 +803,7 @@ export const PLANTS: Plant[] = [
         day: 5,
         shift: "spring",
         title: "Cut back old stems",
-        detail:
-          "Clear the dead top growth of Rozanne before the new shoots cover it.",
+        detail: "Clear the dead top growth of Rozanne before the new shoots cover it.",
       },
       {
         month: 6,
@@ -857,8 +825,7 @@ export const PLANTS: Plant[] = [
       "A large hosta with blue-green leaves edged in yellow-green, and pale lilac bells in summer. It is a shade plant, and the leaves scorch in hot sun.",
     cultivation:
       "Plant in spring in moisture-retentive soil improved with leafmould. Slug protection matters most as the shoots emerge.",
-    pests:
-      "Slugs and snails shred the leaves. Vine weevil can attack plants in pots.",
+    pests: "Slugs and snails shred the leaves. Vine weevil can attack plants in pots.",
     soils: ["clay", "loam"],
     moisture: ["moist"],
     ph: ["acid", "neutral"],
@@ -880,16 +847,14 @@ export const PLANTS: Plant[] = [
         day: 1,
         shift: "spring",
         title: "Protect new shoots",
-        detail:
-          "Start slug control as Frances Williams noses through, before the leaves unroll.",
+        detail: "Start slug control as Frances Williams noses through, before the leaves unroll.",
       },
       {
         month: 10,
         day: 15,
         shift: "autumn",
         title: "Clear collapsed leaves",
-        detail:
-          "Cut the mushy autumn leaves away so slugs have fewer places to shelter.",
+        detail: "Cut the mushy autumn leaves away so slugs have fewer places to shelter.",
       },
     ],
   }),
@@ -924,16 +889,14 @@ export const PLANTS: Plant[] = [
         day: 25,
         shift: "spring",
         title: "Cut to the base",
-        detail:
-          "Remove the old dark stems of Caradonna as new leaves appear at ground level.",
+        detail: "Remove the old dark stems of Caradonna as new leaves appear at ground level.",
       },
       {
         month: 6,
         day: 20,
         shift: "none",
         title: "Shear the first flush",
-        detail:
-          "Cut faded spikes back to the leaves for flowers later in summer.",
+        detail: "Cut faded spikes back to the leaves for flowers later in summer.",
       },
     ],
   }),
@@ -970,8 +933,7 @@ export const PLANTS: Plant[] = [
         day: 20,
         shift: "none",
         title: "Sow seed",
-        detail:
-          "Sow foxglove thinly outdoors in late spring. Transplant the rosettes in autumn.",
+        detail: "Sow foxglove thinly outdoors in late spring. Transplant the rosettes in autumn.",
       },
       {
         month: 6,
@@ -993,8 +955,7 @@ export const PLANTS: Plant[] = [
       "A clump-forming perennial with pincushion flowers in greenish white or dusty pink, held above divided leaves. It likes a cool root run and will not enjoy a hot dry bank.",
     cultivation:
       "Plant in autumn or spring and water during the first summer. Cut faded stems to encourage a later scatter of flowers, and divide every few years.",
-    pests:
-      "Slugs can mark young leaves. Powdery mildew shows up if the plant is starved of water.",
+    pests: "Slugs can mark young leaves. Powdery mildew shows up if the plant is starved of water.",
     soils: ["clay", "loam"],
     moisture: ["moist"],
     ph: ["neutral", "alkaline"],
@@ -1016,16 +977,14 @@ export const PLANTS: Plant[] = [
         day: 20,
         shift: "spring",
         title: "Mulch",
-        detail:
-          "Mulch masterwort while the soil is damp so the clump does not dry out in June.",
+        detail: "Mulch masterwort while the soil is damp so the clump does not dry out in June.",
       },
       {
         month: 7,
         day: 5,
         shift: "none",
         title: "Cut faded stems",
-        detail:
-          "Remove spent flower stems to tidy the clump and prompt a smaller second show.",
+        detail: "Remove spent flower stems to tidy the clump and prompt a smaller second show.",
       },
     ],
   }),
@@ -1039,8 +998,7 @@ export const PLANTS: Plant[] = [
       "An evergreen perennial that flowers in late winter, with nodding bowls in white, pink, plum or spotted forms. It prefers shade and soil that does not dry out in summer.",
     cultivation:
       "Plant in autumn or spring and leave the crown undisturbed. In midwinter, cut away the old leaves so the flowers are visible and disease has less to linger on.",
-    pests:
-      "Aphids cluster under the leaves. Leaf spot is reduced by removing old foliage.",
+    pests: "Aphids cluster under the leaves. Leaf spot is reduced by removing old foliage.",
     soils: ["clay", "loam", "chalk"],
     moisture: ["moist", "well-drained"],
     ph: ["neutral", "alkaline"],
@@ -1051,10 +1009,7 @@ export const PLANTS: Plant[] = [
     maturity: "Flowers from the second winter",
     heightM: [0.4, 0.5],
     spreadM: [0.4, 0.5],
-    months: year(
-      [{ from: 0, to: 2, flower: "white to plum", flowerHex: "#efe8df" }],
-      true,
-    ),
+    months: year([{ from: 0, to: 2, flower: "white to plum", flowerHex: "#efe8df" }], true),
     jobs: [
       {
         month: 0,
@@ -1083,8 +1038,7 @@ export const PLANTS: Plant[] = [
       "A large deciduous shrub with cones of scented lilac, white or purple flowers in late spring. It needs a cold winter and a sunny, open position to flower freely.",
     cultivation:
       "Plant in the dormant season. Prune, if you must, straight after flowering, because next year's buds form on the summer growth. Remove suckers from grafted plants.",
-    pests:
-      "Lilac blight blackens young shoots in a wet spring. Cut those shoots out.",
+    pests: "Lilac blight blackens young shoots in a wet spring. Cut those shoots out.",
     soils: ["chalk", "clay", "loam"],
     moisture: ["well-drained", "moist"],
     ph: ["neutral", "alkaline"],
@@ -1153,8 +1107,7 @@ export const PLANTS: Plant[] = [
         day: 20,
         shift: "autumn",
         title: "Plant the tree",
-        detail:
-          "Plant Evereste in autumn, no deeper than the nursery mark, and stake it low.",
+        detail: "Plant Evereste in autumn, no deeper than the nursery mark, and stake it low.",
       },
       {
         month: 1,
@@ -1169,8 +1122,7 @@ export const PLANTS: Plant[] = [
         day: 1,
         shift: "none",
         title: "Water a young tree",
-        detail:
-          "In a dry July, water a tree planted within the last two years.",
+        detail: "In a dry July, water a tree planted within the last two years.",
       },
     ],
   }),
@@ -1184,8 +1136,7 @@ export const PLANTS: Plant[] = [
       "A scented annual climber with flowers in pinks, purples and whites through summer, if you keep cutting them. It wants a cool root, sun on the flowers, and something to climb.",
     cultivation:
       "Sow in autumn under cover in mild gardens, or in late winter indoors. Plant out in spring beside pea sticks or netting, and water in dry spells.",
-    pests:
-      "Slugs shred seedlings. Pollen beetles sit in the flowers. Mice take outdoor sowings.",
+    pests: "Slugs shred seedlings. Pollen beetles sit in the flowers. Mice take outdoor sowings.",
     soils: ["clay", "loam"],
     moisture: ["moist", "well-drained"],
     ph: ["neutral", "alkaline"],
@@ -1236,8 +1187,7 @@ export const PLANTS: Plant[] = [
         day: 10,
         shift: "none",
         title: "Cut often",
-        detail:
-          "Pick flowers every few days. Once seed pods form, the plant slows down.",
+        detail: "Pick flowers every few days. Once seed pods form, the plant slows down.",
       },
     ],
   }),
@@ -1272,24 +1222,21 @@ export const PLANTS: Plant[] = [
         day: 15,
         shift: "spring",
         title: "Sow indoors",
-        detail:
-          "Sow cosmos in trays in mid-spring and pot the seedlings on before they get leggy.",
+        detail: "Sow cosmos in trays in mid-spring and pot the seedlings on before they get leggy.",
       },
       {
         month: 4,
         day: 25,
         shift: "spring",
         title: "Plant out",
-        detail:
-          "Plant cosmos after the last frost, 40 cm apart, in the sunniest bed.",
+        detail: "Plant cosmos after the last frost, 40 cm apart, in the sunniest bed.",
       },
       {
         month: 7,
         day: 15,
         shift: "none",
         title: "Deadhead",
-        detail:
-          "Snip off faded daisies weekly so the plants keep flowering into autumn.",
+        detail: "Snip off faded daisies weekly so the plants keep flowering into autumn.",
       },
     ],
   }),
@@ -1324,16 +1271,14 @@ export const PLANTS: Plant[] = [
         day: 20,
         shift: "spring",
         title: "Sow indoors",
-        detail:
-          "Sow sunflowers singly in pots so the roots are not disturbed at planting.",
+        detail: "Sow sunflowers singly in pots so the roots are not disturbed at planting.",
       },
       {
         month: 4,
         day: 28,
         shift: "spring",
         title: "Plant out and stake",
-        detail:
-          "Plant after frost and put the stake in at the same time. Water in dry weather.",
+        detail: "Plant after frost and put the stake in at the same time. Water in dry weather.",
       },
       {
         month: 8,
@@ -1384,8 +1329,7 @@ export const PLANTS: Plant[] = [
         day: 10,
         shift: "spring",
         title: "Sow a spring row",
-        detail:
-          "Sow again in March for flowers after the autumn batch. Thin to 15 cm.",
+        detail: "Sow again in March for flowers after the autumn batch. Thin to 15 cm.",
       },
     ],
   }),
@@ -1429,8 +1373,7 @@ export const PLANTS: Plant[] = [
         day: 1,
         shift: "none",
         title: "Deadhead",
-        detail:
-          "Pick off faded daisies every week, or cut whole stems for the house.",
+        detail: "Pick off faded daisies every week, or cut whole stems for the house.",
       },
     ],
   }),
@@ -1471,8 +1414,7 @@ export const PLANTS: Plant[] = [
         day: 1,
         shift: "spring",
         title: "Sow outdoors",
-        detail:
-          "Once the soil is workable, sow direct and thin rather than letting plants crowd.",
+        detail: "Once the soil is workable, sow direct and thin rather than letting plants crowd.",
       },
       {
         month: 5,
@@ -1516,8 +1458,7 @@ export const PLANTS: Plant[] = [
         day: 10,
         shift: "spring",
         title: "Sow indoors",
-        detail:
-          "Sow tomatoes in warmth and move seedlings into bright light as soon as they show.",
+        detail: "Sow tomatoes in warmth and move seedlings into bright light as soon as they show.",
       },
       {
         month: 4,
@@ -1586,8 +1527,7 @@ export const PLANTS: Plant[] = [
         day: 25,
         shift: "none",
         title: "Pinch out tops",
-        detail:
-          "Once the lowest flowers have set, pinch the tips off to reduce blackfly.",
+        detail: "Once the lowest flowers have set, pinch the tips off to reduce blackfly.",
       },
     ],
   }),
@@ -1602,8 +1542,7 @@ export const PLANTS: Plant[] = [
       "A root crop that wants deep, stone-free soil and an even supply of water. Short or round kinds are the realistic choice on heavy clay.",
     cultivation:
       "Sow direct in shallow drills from spring, thinly. Crushing the leaves while thinning attracts carrot fly, so cover the row with fine mesh.",
-    pests:
-      "Carrot fly is the serious pest. Forked roots come from fresh manure and stony ground.",
+    pests: "Carrot fly is the serious pest. Forked roots come from fresh manure and stony ground.",
     soils: ["loam", "sand"],
     moisture: ["well-drained", "moist"],
     ph: ["neutral"],
@@ -1728,24 +1667,21 @@ export const PLANTS: Plant[] = [
         day: 1,
         shift: "spring",
         title: "Sow the first row",
-        detail:
-          "Sow peas 4 cm deep indoors, or outdoors if the soil is workable.",
+        detail: "Sow peas 4 cm deep indoors, or outdoors if the soil is workable.",
       },
       {
         month: 3,
         day: 15,
         shift: "spring",
         title: "Put up supports",
-        detail:
-          "Pea sticks or netting should be in place before the plants flop.",
+        detail: "Pea sticks or netting should be in place before the plants flop.",
       },
       {
         month: 6,
         day: 5,
         shift: "none",
         title: "Pick and water",
-        detail:
-          "Harvest peas as the pods fill, and water if the soil dries while they swell.",
+        detail: "Harvest peas as the pods fill, and water if the soil dries while they swell.",
       },
     ],
   }),
@@ -1787,8 +1723,7 @@ export const PLANTS: Plant[] = [
         day: 20,
         shift: "none",
         title: "Limit the seed",
-        detail:
-          "Pull plants before every flower drops seed if you do not want a colony next year.",
+        detail: "Pull plants before every flower drops seed if you do not want a colony next year.",
       },
     ],
   }),
@@ -1796,6 +1731,47 @@ export const PLANTS: Plant[] = [
 
 export function getPlant(id: string): Plant | undefined {
   return PLANTS.find((entry) => entry.id === id);
+}
+
+export const FLOWER_COLOURS = [
+  "white",
+  "yellow",
+  "orange",
+  "red",
+  "pink",
+  "purple",
+  "blue",
+] as const;
+
+export type FlowerColour = (typeof FLOWER_COLOURS)[number];
+
+export const FLOWER_COLOUR_LABEL: Record<FlowerColour, string> = {
+  white: "White",
+  yellow: "Yellow",
+  orange: "Orange",
+  red: "Red",
+  pink: "Pink",
+  purple: "Purple",
+  blue: "Blue",
+};
+
+const FLOWER_COLOUR_WORDS: Record<FlowerColour, readonly string[]> = {
+  white: ["white"],
+  yellow: ["yellow", "golden"],
+  orange: ["orange"],
+  red: ["red", "maroon"],
+  pink: ["pink"],
+  purple: ["purple", "violet", "lilac", "plum"],
+  blue: ["blue"],
+};
+
+export function hasFlowerColour(plant: Plant, colour: FlowerColour): boolean {
+  const words = FLOWER_COLOUR_WORDS[colour];
+  return plant.months.some((month) => {
+    if (!month.flower) return false;
+    const tokens = month.flower.toLowerCase().split(/[^a-z]+/);
+    return tokens.some((token) => words.includes(token));
+  });
 }
 
 export const SEASONS = [
@@ -1809,9 +1785,7 @@ export function seasonLook(record: Plant, months: readonly number[]) {
   const rows = months
     .map((month) => record.months[month])
     .filter((row): row is MonthLook => row !== undefined);
-  const flowers = [
-    ...new Set(rows.flatMap((row) => (row.flower ? [row.flower] : []))),
-  ];
+  const flowers = [...new Set(rows.flatMap((row) => (row.flower ? [row.flower] : [])))];
   return {
     foliage: rows.some((row) => row.foliage),
     flowers,
