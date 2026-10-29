@@ -1,6 +1,6 @@
 import type { AddressChoice } from "#/server/site";
 import { Button } from "#/components/generic/button";
-import { PlotMap } from "./plot-map";
+import { PlotMap } from "./plot-map/plot-map";
 import type { PlotMatch } from "./types";
 
 export const SelectMatch = ({
