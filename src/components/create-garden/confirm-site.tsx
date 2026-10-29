@@ -18,11 +18,19 @@ import {
   type Garden,
   type Moisture,
   type PhLevel,
+  type SoilType,
 } from "#/domain/types";
+import { createGarden, type GardenConditions } from "#/lib/gardens";
 import { Button } from "#/components/generic/button";
 import { Select } from "#/components/generic/select";
 import type { FoundSite } from "./types";
-import { Alert } from "../generic/alert";
+import { Alert } from "#/components/generic/alert";
+
+const DEFAULT_SOIL: SoilType = "loam";
+const DEFAULT_MOISTURE: Moisture = "well-drained";
+const DEFAULT_PH: PhLevel = "neutral";
+const DEFAULT_ASPECT: Aspect = "south";
+const DEFAULT_EXPOSURE: Exposure = "sheltered";
 
 export const ConfirmSite = ({
   name,
@@ -38,47 +46,14 @@ export const ConfirmSite = ({
   const slopeText = describeSlope(site.slope);
   const form = useForm({
     defaultValues: {
-      soil: site.soilSuggestion?.soil ?? "loam",
-      moisture: "well-drained" as Moisture,
-      ph: "neutral" as PhLevel,
-      aspect: "south" as Aspect,
-      exposure: "sheltered" as Exposure,
-    },
+      soil: site.soilSuggestion?.soil ?? DEFAULT_SOIL,
+      moisture: DEFAULT_MOISTURE,
+      ph: DEFAULT_PH,
+      aspect: DEFAULT_ASPECT,
+      exposure: DEFAULT_EXPOSURE,
+    } as GardenConditions,
     onSubmit: ({ value }) => {
-      const now = new Date().toISOString();
-      onSave({
-        id: crypto.randomUUID(),
-        createdAt: now,
-        updatedAt: now,
-        buildingsLoaded: false,
-        buildingError: null,
-        showUnsuitable: false,
-        showBedNames: false,
-        showShade: true,
-        showSlope: true,
-        surface: "grass",
-        boundary: site.boundary,
-        attribution: site.attribution,
-        blocks: [],
-        beds: [],
-        placements: [],
-        site: {
-          name,
-          address: site.matchedAddress,
-          postcode: site.postcode,
-          latitude: site.latitude,
-          longitude: site.longitude,
-          country: site.country,
-          region: site.region,
-          soil: value.soil,
-          moisture: value.moisture,
-          ph: value.ph,
-          aspect: value.aspect,
-          exposure: value.exposure,
-          soilSuggestion: site.soilSuggestion,
-          slope: site.slope ?? { kind: "unknown" },
-        },
-      });
+      onSave(createGarden(name, site, value));
     },
   });
 
@@ -98,23 +73,23 @@ export const ConfirmSite = ({
           {site.postcode} · {site.region}
         </p>
       </div>
-      <Alert variant="success">
+      <Alert variant="info">
         {site.boundary
           ? `Property outline imported (${site.boundary.length} corners). ${site.boundaryNote ?? ""}`
           : (site.boundaryNote ?? "No property outline was imported. Draw the plot yourself.")}
       </Alert>
       {site.soilSuggestion ? (
-        <Alert variant="success">
+        <Alert variant="info">
           {site.soilSuggestion.label}. This is a hint from a national map, not a soil test. Change
           it if you know your soil type.
         </Alert>
       ) : (
-        <Alert variant="success">
+        <Alert variant="info">
           No soil map reading came back for this point. Choose the soil you have, or the closest
           match.
         </Alert>
       )}
-      {slopeText ? <Alert variant="success">Property slope: {slopeText}</Alert> : null}
+      {slopeText ? <Alert variant="info">Property slope: {slopeText}</Alert> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <form.Field name="soil">
           {(field) => (

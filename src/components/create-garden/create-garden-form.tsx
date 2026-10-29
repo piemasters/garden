@@ -1,9 +1,9 @@
 import { useForm } from "@tanstack/react-form";
 import type { UseMutationResult } from "@tanstack/react-query";
-import type { SiteLookup } from "#/server/site.ts";
-import { Button } from "#/components/generic/button.tsx";
-import { Input } from "#/components/generic/input.tsx";
-import type { FoundResults, LookupSitePayload } from "./types.ts";
+import type { SiteLookup, SiteQuery } from "#/server/site";
+import { Button } from "#/components/generic/button";
+import { Input } from "#/components/generic/input";
+import { errorMessage, type FoundResults } from "./types";
 
 export function CreateGardenForm({
   lookup,
@@ -11,7 +11,7 @@ export function CreateGardenForm({
   error,
   setError,
 }: {
-  lookup: UseMutationResult<SiteLookup, Error, LookupSitePayload, unknown>;
+  lookup: UseMutationResult<SiteLookup, Error, SiteQuery, unknown>;
   setFound: (v: FoundResults) => void;
   error: string | null;
   setError: (v: string | null) => void;
@@ -23,22 +23,34 @@ export function CreateGardenForm({
       const address = value.address.trim();
       const postcode = value.postcode.trim();
 
-      if (!name) return setError("Give the garden a name.");
-      if (!address) return setError("Enter the first line of your address.");
-      if (!postcode) return setError("Enter a full UK postcode, such as SW1A 1AA.");
+      if (!name) {
+        setError("Give the garden a name.");
+        return;
+      }
+      if (!address) {
+        setError("Enter the first line of your address.");
+        return;
+      }
+      if (!postcode) {
+        setError("Enter a full UK postcode, such as SW1A 1AA.");
+        return;
+      }
 
       try {
         setError(null);
         const result = await lookup.mutateAsync({ address, postcode });
-        if (!result.ok) throw new Error(result.error);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
         setFound({
           name,
           address,
           postcode,
           site: result,
         });
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        setError(errorMessage(err));
       }
     },
   });

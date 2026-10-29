@@ -7,18 +7,16 @@ export type FoundResults = {
   address: string;
   postcode: string;
   site: FoundSite;
-} | null;
-
-export type LookupSitePayload = {
-  address: string;
-  postcode: string;
-  selected?: AddressChoice | null;
 };
 
-export type LookupPlotsPayload = {
-  postcode: string;
-  latitude: number;
-  longitude: number;
-  originLatitude: number;
-  originLongitude: number;
+export type PlotMatch = FoundResults & {
+  site: FoundSite & { choices: AddressChoice[] };
 };
+
+export function isPlotMatch(found: FoundResults | null): found is PlotMatch {
+  return Boolean(found?.site.choices && found.site.choices.length > 0);
+}
+
+export function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : "Something went wrong. Try again.";
+}

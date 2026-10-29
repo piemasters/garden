@@ -33,6 +33,14 @@ export interface SiteQuery {
   selected?: AddressChoice | null;
 }
 
+export interface PlotsAroundQuery {
+  postcode: string;
+  latitude: number;
+  longitude: number;
+  originLatitude: number;
+  originLongitude: number;
+}
+
 export type SiteLookup =
   | {
       ok: true;
@@ -409,21 +417,13 @@ async function chooseNearbyPlot(
 }
 
 export const lookupPlotsAround = createServerFn({ method: "POST" })
-  .validator(
-    (input: {
-      postcode: string;
-      latitude: number;
-      longitude: number;
-      originLatitude: number;
-      originLongitude: number;
-    }) => ({
-      postcode: input.postcode.trim(),
-      latitude: input.latitude,
-      longitude: input.longitude,
-      originLatitude: input.originLatitude,
-      originLongitude: input.originLongitude,
-    }),
-  )
+  .validator((input: PlotsAroundQuery) => ({
+    postcode: input.postcode.trim(),
+    latitude: input.latitude,
+    longitude: input.longitude,
+    originLatitude: input.originLatitude,
+    originLongitude: input.originLongitude,
+  }))
   .handler(
     async ({
       data,

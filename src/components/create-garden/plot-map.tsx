@@ -4,11 +4,18 @@ import type {
   TileLayer as LeafletTileLayer,
   Polygon as LeafletPolygon,
   LatLngExpression as LeafletLatLngExpression,
+  PathOptions,
 } from "leaflet";
 import type { AddressChoice } from "#/server/site";
 import { fromLocalMetres, smallestOutlineAt, toLocalMetres } from "#/domain/geometry";
 import { loadLeaflet } from "#/domain/leaflet";
 import { Button } from "#/components/generic/button";
+
+const CLICK_GUARD_MS = 400;
+
+const AERIAL_ATTRIBUTION =
+  "Imagery © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community";
+const OSM_ATTRIBUTION = "© OpenStreetMap contributors";
 
 const FILLS = [
   "#6f8f72",
@@ -80,14 +87,10 @@ export function PlotMap({
         map = view;
         const aerial = L.tileLayer(
           "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-          {
-            attribution:
-              "Imagery © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
-            maxZoom: 19,
-          },
+          { attribution: AERIAL_ATTRIBUTION, maxZoom: 19 },
         );
         const streets = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: "© OpenStreetMap contributors",
+          attribution: OSM_ATTRIBUTION,
           maxZoom: 19,
         });
         const plots = L.layerGroup().addTo(view);
@@ -100,7 +103,7 @@ export function PlotMap({
         const choose = (choice: AddressChoice) => {
           if (disabledRef.current) return;
           const now = Date.now();
-          if (now - lastPick < 400) return;
+          if (now - lastPick < CLICK_GUARD_MS) return;
           lastPick = now;
           onChooseRef.current(choice);
         };
@@ -110,15 +113,11 @@ export function PlotMap({
           const positions: LeafletLatLngExpression[] = [];
           let highlighted: LeafletPolygon | undefined;
           for (const [index, choice] of next.entries()) {
-            const ring = ringFor(choice, originLatitude, originLongitude);
             if (choice.outline && choice.outline.length >= 3) {
-              const fill = FILLS[index % FILLS.length] ?? "#6f8f72";
-              const resting = choice.matched
-                ? { color: "#1c2822", weight: 4, fillColor: "#2c6b4a", fillOpacity: 0.62 }
-                : { color: "#fffaf3", weight: 2, fillColor: fill, fillOpacity: 0.35 };
-              const hovering = choice.matched
-                ? { color: "#1c2822", weight: 5, fillColor: "#2c6b4a", fillOpacity: 0.78 }
-                : { color: "#fffaf3", weight: 3, fillColor: fill, fillOpacity: 0.55 };
+              const ring = ringFor(choice.outline, originLatitude, originLongitude);
+              const fill = FILLS[index % FILLS.length];
+              const resting = plotStyle(choice.matched, fill, false);
+              const hovering = plotStyle(choice.matched, fill, true);
               const polygon = L.polygon(ring, {
                 ...resting,
                 bubblingMouseEvents: false,
@@ -259,32 +258,63 @@ export function PlotMap({
         aria-label="Map of freehold plots. Click empty ground to load plots there, or click a plot to import it."
       />
       {status ? <p className="text-sm text-ink/70">{status}</p> : null}
-      {mapError ? <p className="text-sm text-clay">{mapError}</p> : null}
-      <p className="text-xs text-ink/60">
-        {choices.some((choice) => choice.matched)
-          ? "The dark dot matches the address. Click it to confirm, or click another plot if it is wrong."
-          : "If your plot isn't highlighted, click on it to load the freeholds in that area, then select the coloured plot to import it."}
-      </p>
+      {mapError ? (
+        <div className="space-y-2">
+          <p className="text-sm text-clay">{mapError}</p>
+          <ul className="space-y-2">
+            {choices.map((choice, index) => (
+              <li key={`${choice.label}-${choice.latitude}-${choice.longitude}-${index}`}>
+                <Button
+                  variant={choice.matched ? "primary" : "secondary"}
+                  disabled={disabled}
+                  onClick={() => onChoose(choice)}
+                >
+                  {choice.label}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="text-xs text-ink/60">
+          {choices.some((choice) => choice.matched)
+            ? "The dark dot matches the address. Click it to confirm, or click another plot if it is wrong."
+            : "If your plot isn't highlighted, click on it to load the freeholds in that area, then select the coloured plot to import it."}
+        </p>
+      )}
       <details className="text-xs text-ink/50">
         <summary className="cursor-pointer">Map sources</summary>
         <p className="mt-1">
-          Imagery © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community.
-          Streets © OpenStreetMap contributors.
+          {AERIAL_ATTRIBUTION}. Streets {OSM_ATTRIBUTION}.
         </p>
       </details>
     </div>
   );
 }
 
+function plotStyle(matched: boolean | undefined, fill: string, hovering: boolean): PathOptions {
+  if (matched) {
+    return {
+      color: "#1c2822",
+      weight: hovering ? 5 : 4,
+      fillColor: "#2c6b4a",
+      fillOpacity: hovering ? 0.78 : 0.62,
+    };
+  }
+  return {
+    color: "#fffaf3",
+    weight: hovering ? 3 : 2,
+    fillColor: fill,
+    fillOpacity: hovering ? 0.55 : 0.35,
+  };
+}
+
 function ringFor(
-  choice: AddressChoice,
+  outline: NonNullable<AddressChoice["outline"]>,
   originLatitude: number,
   originLongitude: number,
 ): [number, number][] {
-  if (!choice.outline || choice.outline.length < 3) {
-    return [[choice.latitude, choice.longitude]];
-  }
-  return choice.outline.map((point) => {
+  return outline.map((point) => {
     const geographic = fromLocalMetres(point, originLatitude, originLongitude);
     return [geographic.latitude, geographic.longitude];
   });
