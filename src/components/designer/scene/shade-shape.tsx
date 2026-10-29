@@ -1,18 +1,12 @@
 import { Line } from "@react-three/drei";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import type { ShadeBlock } from "../../domain/types";
+import type { ShadeBlock } from "#/domain/types";
 
 type Size = { width: number; depth: number; height: number };
 
 /** Decorative stand-in for a shade block. The hit box stays the plain footprint. */
-export function ShadeBody({
-  block,
-  selected,
-}: {
-  block: ShadeBlock;
-  selected: boolean;
-}) {
+export function ShadeBody({ block, selected }: { block: ShadeBlock; selected: boolean }) {
   const width = Math.max(block.width, 0.05);
   const depth = Math.max(block.depth, 0.05);
   const height = Math.max(block.height, 0.05);
@@ -113,20 +107,13 @@ function BuildingShape({
           <meshStandardMaterial color={roof} roughness={0.8} />
         </mesh>
       </group>
-      <mesh
-        position={[0, wallHeight * 0.42, depth / 2 + 0.03]}
-        raycast={() => null}
-      >
+      <mesh position={[0, wallHeight * 0.42, depth / 2 + 0.03]} raycast={() => null}>
         <boxGeometry args={[doorWidth, wallHeight * 0.55, 0.06]} />
         <meshStandardMaterial color={door} roughness={0.7} />
       </mesh>
       {chimney ? (
         <mesh
-          position={[
-            width * 0.28,
-            wallHeight + actualRise * 0.72,
-            -depth * 0.12,
-          ]}
+          position={[width * 0.28, wallHeight + actualRise * 0.72, -depth * 0.12]}
           raycast={() => null}
         >
           <boxGeometry args={[0.5, actualRise * 0.85, 0.5]} />
@@ -220,11 +207,7 @@ function Gable({
   useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <mesh geometry={geometry} raycast={() => null}>
-      <meshStandardMaterial
-        color={color}
-        side={THREE.DoubleSide}
-        roughness={0.85}
-      />
+      <meshStandardMaterial color={color} side={THREE.DoubleSide} roughness={0.85} />
     </mesh>
   );
 }
@@ -238,16 +221,10 @@ function TreeShape({ width, depth, height }: Size) {
   return (
     <group>
       <mesh position={[0, trunkHeight / 2, 0]} raycast={() => null}>
-        <cylinderGeometry
-          args={[trunkRadius * 0.75, trunkRadius, trunkHeight, 8]}
-        />
+        <cylinderGeometry args={[trunkRadius * 0.75, trunkRadius, trunkHeight, 8]} />
         <meshStandardMaterial color="#6b4a32" roughness={0.95} />
       </mesh>
-      <mesh
-        position={[0, crownCenter, 0]}
-        scale={[width, crownHeight, depth]}
-        raycast={() => null}
-      >
+      <mesh position={[0, crownCenter, 0]} scale={[width, crownHeight, depth]} raycast={() => null}>
         <sphereGeometry args={[0.5, 22, 16]} />
         <meshStandardMaterial color="#3f7d49" roughness={0.85} />
       </mesh>
@@ -265,11 +242,7 @@ function HedgeShape({ width, depth, height }: Size) {
         <boxGeometry args={[core, body, depth * 0.92]} />
         <meshStandardMaterial color="#2c6840" roughness={0.9} />
       </mesh>
-      <mesh
-        position={[0, body, 0]}
-        rotation={[0, 0, Math.PI / 2]}
-        raycast={() => null}
-      >
+      <mesh position={[0, body, 0]} rotation={[0, 0, Math.PI / 2]} raycast={() => null}>
         <cylinderGeometry args={[cap, cap, width, 12]} />
         <meshStandardMaterial color="#3c7d49" roughness={0.85} />
       </mesh>
@@ -341,12 +314,7 @@ function RepeatedBoards({
     mesh.instanceMatrix.needsUpdate = true;
   }, [count, width, y]);
   return (
-    <instancedMesh
-      key={count}
-      ref={ref}
-      args={[undefined, undefined, count]}
-      raycast={() => null}
-    >
+    <instancedMesh key={count} ref={ref} args={[undefined, undefined, count]} raycast={() => null}>
       <boxGeometry args={args} />
       <meshStandardMaterial color={color} roughness={0.9} />
     </instancedMesh>

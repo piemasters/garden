@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import type { ComponentType } from "react";
-import type { SceneProps } from "./garden-scene";
+import type { SceneProps } from "./scene/garden-scene";
 
 export function GardenCanvas(props: SceneProps) {
   const [Scene, setScene] = useState<ComponentType<SceneProps> | null>(null);
 
   useEffect(() => {
     let active = true;
-    void import("./garden-scene").then((module) => {
+    void import("./scene/garden-scene").then((module) => {
       if (active) setScene(() => module.GardenScene);
     });
     return () => {

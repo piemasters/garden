@@ -9,7 +9,7 @@ import {
   plotsAround,
   type CouncilFile,
   type NearbyPlot,
-} from "../domain/parcels";
+} from "#/domain/parcels";
 
 const BASE = "https://use-land-property-data.service.gov.uk";
 const CATALOGUE_URL = `${BASE}/datasets/inspire/download`;
