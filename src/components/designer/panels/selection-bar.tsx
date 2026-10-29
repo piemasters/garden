@@ -1,7 +1,7 @@
 import type { ShadeBlock } from "#/domain/types";
 import { useUnits } from "#/lib/units";
 import { SELECT_TOOL, type Tool } from "../tools";
-import { DuplicateIcon } from "./icons";
+import { DuplicateIcon, RemoveIcon } from "./icons";
 import { ToolButton } from "./tool-button";
 
 export function SelectionBar({
@@ -62,6 +62,7 @@ export function SelectionBar({
           title="Remove the selected bed or shade area."
           onClick={onRemove}
         >
+          <RemoveIcon />
           Remove
         </button>
       </div>

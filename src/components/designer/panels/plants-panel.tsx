@@ -10,6 +10,7 @@ import {
   plantListFilterIsSet,
   type PlantListFilter,
 } from "#/components/plants/plant-filters";
+import { Tabs } from "#/components/generic/tabs";
 import { quietButtonClass } from "../tools";
 import { PlantedGroups, groupPlantings } from "./planted-groups";
 
@@ -29,8 +30,8 @@ export function PlantsPanel({
   onFill,
   placements,
   month,
+  gardenId,
   onRemoveFromBed,
-  onRemoveEverywhere,
 }: {
   activeBed: { id: string; name: string } | null;
   aspect: Aspect;
@@ -45,22 +46,54 @@ export function PlantsPanel({
   onFill: (plant: { id: string; commonName: string; spreadM: [number, number] }) => void;
   placements: Placement[];
   month: number;
+  gardenId: string;
   onRemoveFromBed: (plantId: string) => void;
-  onRemoveEverywhere: (plantId: string) => void;
 }) {
   const units = useUnits();
   const bedPlacements = activeBed
     ? placements.filter((placement) => placement.bedId === activeBed.id)
     : [];
-  const otherPlacements = activeBed
-    ? placements.filter((placement) => placement.bedId !== activeBed.id)
-    : [];
   const bedGroups = groupPlantings(bedPlacements);
+  const bedCount = plantedCount(bedPlacements);
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-xl">{activeBed ? `For ${activeBed.name}` : "Plants"}</h2>
-        <label className="flex items-center gap-2 text-xs">
+      <h2 className="text-xl">{activeBed ? `For ${activeBed.name}` : "Plants"}</h2>
+      {activeBed && bedCount > 0 ? (
+        <div className="space-y-3">
+          <h3 className="flex items-baseline justify-between text-base">
+            Planted total
+            <span className="text-sm font-normal text-ink/60">{bedCount}</span>
+          </h3>
+          {bedPlacements.some((item) => (item.count ?? 1) > MAP_FILL_CAP) ? (
+            <p className="text-sm text-ink/60">The plan shows a sample of a large fill.</p>
+          ) : null}
+          <PlantedGroups
+            groups={bedGroups}
+            month={month}
+            scope={activeBed.name}
+            onRemove={onRemoveFromBed}
+          />
+        </div>
+      ) : null}
+
+      <p className="text-xs text-ink/60">{aspectNote(aspect)}</p>
+      <Tabs
+        label="Plant groups"
+        value={plantGroup}
+        options={PLANT_GROUPS}
+        labels={GROUP_LABEL}
+        onChange={onPlantGroup}
+      />
+      <details className="text-sm">
+        <summary className="cursor-pointer text-ink/70">
+          Filters{plantListFilterIsSet(plantFilter) ? " · on" : ""}
+        </summary>
+        <PlantFilterFields
+          value={plantFilter}
+          onChange={onPlantFilter}
+          className="mt-2 sm:grid-cols-1 lg:grid-cols-1"
+        />
+        <label className="flex justify-end pt-4 pb-1 items-center gap-2 text-xs">
           <input
             type="checkbox"
             checked={showUnsuitable}
@@ -68,29 +101,7 @@ export function PlantsPanel({
           />
           Show unsuitable
         </label>
-      </div>
-      <p className="text-xs text-ink/60">{aspectNote(aspect)}</p>
-      <div className="flex flex-wrap gap-1">
-        {PLANT_GROUPS.map((group) => (
-          <button
-            key={group}
-            type="button"
-            className={`rounded-full border px-3 py-1 text-sm ${
-              plantGroup === group
-                ? "border-leaf bg-leaf text-white"
-                : "border-line bg-card text-ink hover:border-leaf"
-            }`}
-            onClick={() => onPlantGroup(group)}
-          >
-            {GROUP_LABEL[group]}
-          </button>
-        ))}
-      </div>
-      <PlantFilterFields
-        value={plantFilter}
-        onChange={onPlantFilter}
-        className="sm:grid-cols-1 lg:grid-cols-1"
-      />
+      </details>
       {!activeBed ? (
         <p className="text-sm">Draw a bed to see plants that fit its sun and your soil.</p>
       ) : recommendations.length === 0 ? (
@@ -147,50 +158,6 @@ export function PlantsPanel({
           </li>
         ))}
       </ul>
-      {placements.length > 0 ? (
-        <div className="space-y-3">
-          <h2 className="flex items-baseline justify-between text-lg">
-            Planted
-            <span className="text-sm font-normal text-ink/60">{plantedCount(placements)}</span>
-          </h2>
-          {placements.some((item) => (item.count ?? 1) > MAP_FILL_CAP) ? (
-            <p className="text-sm text-ink/60">The plan shows a sample of a large fill.</p>
-          ) : null}
-          {activeBed ? (
-            <div>
-              <h3 className="flex items-baseline justify-between text-base">
-                {activeBed.name}
-                <span className="text-sm font-normal text-ink/60">
-                  {plantedCount(bedPlacements)}
-                </span>
-              </h3>
-              {bedGroups.length === 0 ? (
-                <p className="mt-1 text-sm text-ink/60">Nothing planted in this bed.</p>
-              ) : (
-                <PlantedGroups
-                  groups={bedGroups}
-                  month={month}
-                  scope={activeBed.name}
-                  onRemove={onRemoveFromBed}
-                />
-              )}
-            </div>
-          ) : null}
-          {otherPlacements.length > 0 ? (
-            <div>
-              <h3 className="flex items-baseline justify-between text-base">
-                All beds
-                <span className="text-sm font-normal text-ink/60">{plantedCount(placements)}</span>
-              </h3>
-              <PlantedGroups
-                groups={groupPlantings(placements)}
-                month={month}
-                onRemove={onRemoveEverywhere}
-              />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }

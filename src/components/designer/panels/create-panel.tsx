@@ -3,6 +3,7 @@ import { BUILTIN_BED_PRESETS, type BedPreset } from "#/lib/bed-presets";
 import { useUnits } from "#/lib/units";
 import { presetIsLine } from "../drawing";
 import { BED_TOOLS, CUSTOM_SHADE, SHADE_PRESETS, type ShadePreset, type Tool } from "../tools";
+import { ShadeAreaIcon } from "./icons";
 import { ToolButton } from "./tool-button";
 
 export function CreatePanel({
@@ -151,28 +152,22 @@ export function CreatePanel({
             return (
               <button
                 key={item.label}
-                className={
-                  armed
-                    ? "min-h-8 rounded-full bg-leaf px-2 py-1 text-[11px] text-white"
-                    : "min-h-8 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf"
-                }
+                className={shadeButtonClass(armed)}
                 type="button"
                 onClick={() => onArmShade(item)}
               >
+                <ShadeAreaIcon kind={item.label} />
                 {item.label}
               </button>
             );
           })}
           <button
-            className={
-              tool === "block" && !shadePreset
-                ? "min-h-8 rounded-full bg-leaf px-2 py-1 text-[11px] text-white"
-                : "min-h-8 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf"
-            }
+            className={shadeButtonClass(tool === "block" && !shadePreset)}
             type="button"
             title={CUSTOM_SHADE.help}
             onClick={() => onTool(CUSTOM_SHADE.tool)}
           >
+            <ShadeAreaIcon kind="Custom" />
             {CUSTOM_SHADE.label}
           </button>
         </div>
@@ -199,6 +194,12 @@ export function CreatePanel({
       </p>
     </div>
   );
+}
+
+function shadeButtonClass(armed: boolean) {
+  return armed
+    ? "inline-flex min-h-8 items-center gap-1 rounded-full bg-leaf px-2 py-1 text-[11px] text-white"
+    : "inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf";
 }
 
 function PresetSizeField({

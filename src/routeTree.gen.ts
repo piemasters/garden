@@ -15,6 +15,7 @@ import { Route as PlantsIndexRouteImport } from './routes/plants/index'
 import { Route as PlantsPlantIdRouteImport } from './routes/plants/$plantId'
 import { Route as GardensGardenIdIndexRouteImport } from './routes/gardens/$gardenId/index'
 import { Route as GardensGardenIdJobsRouteImport } from './routes/gardens/$gardenId/jobs'
+import { Route as GardensGardenIdPlantingsRouteImport } from './routes/gardens/$gardenId/plantings'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,12 @@ const GardensGardenIdJobsRoute = GardensGardenIdJobsRouteImport.update({
   path: '/jobs',
   getParentRoute: () => GardensGardenIdRoute,
 } as any)
+const GardensGardenIdPlantingsRoute =
+  GardensGardenIdPlantingsRouteImport.update({
+    id: '/plantings',
+    path: '/plantings',
+    getParentRoute: () => GardensGardenIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -53,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/plants/$plantId': typeof PlantsPlantIdRoute
   '/plants/': typeof PlantsIndexRoute
   '/gardens/$gardenId/jobs': typeof GardensGardenIdJobsRoute
+  '/gardens/$gardenId/plantings': typeof GardensGardenIdPlantingsRoute
   '/gardens/$gardenId/': typeof GardensGardenIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -60,6 +68,7 @@ export interface FileRoutesByTo {
   '/plants/$plantId': typeof PlantsPlantIdRoute
   '/plants': typeof PlantsIndexRoute
   '/gardens/$gardenId/jobs': typeof GardensGardenIdJobsRoute
+  '/gardens/$gardenId/plantings': typeof GardensGardenIdPlantingsRoute
   '/gardens/$gardenId': typeof GardensGardenIdIndexRoute
 }
 export interface FileRoutesById {
@@ -69,6 +78,7 @@ export interface FileRoutesById {
   '/plants/$plantId': typeof PlantsPlantIdRoute
   '/plants/': typeof PlantsIndexRoute
   '/gardens/$gardenId/jobs': typeof GardensGardenIdJobsRoute
+  '/gardens/$gardenId/plantings': typeof GardensGardenIdPlantingsRoute
   '/gardens/$gardenId/': typeof GardensGardenIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -79,6 +89,7 @@ export interface FileRouteTypes {
     | '/plants/$plantId'
     | '/plants/'
     | '/gardens/$gardenId/jobs'
+    | '/gardens/$gardenId/plantings'
     | '/gardens/$gardenId/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -86,6 +97,7 @@ export interface FileRouteTypes {
     | '/plants/$plantId'
     | '/plants'
     | '/gardens/$gardenId/jobs'
+    | '/gardens/$gardenId/plantings'
     | '/gardens/$gardenId'
   id:
     | '__root__'
@@ -94,6 +106,7 @@ export interface FileRouteTypes {
     | '/plants/$plantId'
     | '/plants/'
     | '/gardens/$gardenId/jobs'
+    | '/gardens/$gardenId/plantings'
     | '/gardens/$gardenId/'
   fileRoutesById: FileRoutesById
 }
@@ -148,16 +161,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GardensGardenIdJobsRouteImport
       parentRoute: typeof GardensGardenIdRoute
     }
+    '/gardens/$gardenId/plantings': {
+      id: '/gardens/$gardenId/plantings'
+      path: '/plantings'
+      fullPath: '/gardens/$gardenId/plantings'
+      preLoaderRoute: typeof GardensGardenIdPlantingsRouteImport
+      parentRoute: typeof GardensGardenIdRoute
+    }
   }
 }
 
 interface GardensGardenIdRouteChildren {
   GardensGardenIdJobsRoute: typeof GardensGardenIdJobsRoute
+  GardensGardenIdPlantingsRoute: typeof GardensGardenIdPlantingsRoute
   GardensGardenIdIndexRoute: typeof GardensGardenIdIndexRoute
 }
 
 const GardensGardenIdRouteChildren: GardensGardenIdRouteChildren = {
   GardensGardenIdJobsRoute: GardensGardenIdJobsRoute,
+  GardensGardenIdPlantingsRoute: GardensGardenIdPlantingsRoute,
   GardensGardenIdIndexRoute: GardensGardenIdIndexRoute,
 }
 

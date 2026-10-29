@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { SUN_LABEL } from "#/domain/labels";
 import { midsummerSamples } from "#/domain/sun";
-import type { Garden, Point, ShadeBlock } from "#/domain/types";
+import type { Garden, ShadeBlock } from "#/domain/types";
 import { useUnits } from "#/lib/units";
 import { bedSize, resolvedLight } from "../drawing";
 import type { AdjustPreview, ShapeMenu } from "../tools";
@@ -21,8 +21,6 @@ export function BedsPanel({
   onCloseMenu,
   jobCount,
   gardenId,
-  attribution,
-  boundary,
 }: {
   beds: Garden["beds"];
   blocks: ShadeBlock[];
@@ -36,8 +34,6 @@ export function BedsPanel({
   onCloseMenu: () => void;
   jobCount: number;
   gardenId: string;
-  attribution: string | null;
-  boundary: Point[] | null;
 }) {
   const units = useUnits();
   return (
@@ -107,18 +103,6 @@ export function BedsPanel({
           {jobCount === 0 ? "Jobs will appear once you place plants" : `${jobCount} jobs this year`}
         </Link>
       </p>
-      {attribution || (boundary && boundary.length >= 3) ? (
-        <details className="text-xs text-ink/50">
-          <summary className="cursor-pointer">Sources</summary>
-          {boundary && boundary.length >= 3 ? (
-            <p className="mt-1">
-              Property outline from HM Land Registry. It is the indicative freehold extent, not the
-              legal title.
-            </p>
-          ) : null}
-          {attribution ? <p className="mt-1">{attribution}</p> : null}
-        </details>
-      ) : null}
     </div>
   );
 }

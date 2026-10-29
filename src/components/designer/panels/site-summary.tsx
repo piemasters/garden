@@ -18,6 +18,7 @@ export function SiteSummary({
   view,
   panelExpanded,
   onTogglePanel,
+  attribution,
 }: {
   site: Garden["site"];
   slopeText: string | null;
@@ -33,6 +34,7 @@ export function SiteSummary({
   view: "plan" | "orbit";
   panelExpanded: boolean;
   onTogglePanel: () => void;
+  attribution: string | null;
 }) {
   return (
     <div className="flex items-start gap-2">
@@ -61,6 +63,7 @@ export function SiteSummary({
           {site.soilSuggestion ? (
             <p className="text-xs text-ink/60">{site.soilSuggestion.label}</p>
           ) : null}
+          <GroundChoices surface={surface} hasOutline={hasOutline} onSurface={onSurface} />
           <label className="block text-sm">
             Month
             <input
@@ -73,7 +76,6 @@ export function SiteSummary({
             />
             <span className="font-medium">{MONTH_NAMES[month]}</span>
           </label>
-          <GroundChoices surface={surface} hasOutline={hasOutline} onSurface={onSurface} />
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             <label className="flex items-center gap-2 text-xs">
               <input
@@ -101,6 +103,18 @@ export function SiteSummary({
             <p className="text-xs leading-snug text-ink/60">
               Scroll to zoom. Drag empty ground to move around. Double-click to centre the plan.
             </p>
+          ) : null}
+          {attribution || hasOutline ? (
+            <details className="text-xs text-ink/50">
+              <summary className="cursor-pointer">Sources</summary>
+              {hasOutline ? (
+                <p className="mt-1">
+                  Property outline from HM Land Registry. It is the indicative freehold extent, not
+                  the legal title.
+                </p>
+              ) : null}
+              {attribution ? <p className="mt-1">{attribution}</p> : null}
+            </details>
           ) : null}
         </div>
       </details>

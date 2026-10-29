@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { buildTimeline } from "#/domain/jobs";
 import { PLANTS } from "#/domain/plants";
+import { Tabs } from "#/components/generic/tabs";
 import { plantMatchesListFilter, type PlantListFilter } from "#/components/plants/plant-filters";
 import { recommendPlants } from "#/domain/recommend";
 import { describeSlope } from "#/domain/slope";
@@ -91,6 +92,7 @@ export function DesignerAside({
         view={view}
         panelExpanded={panelExpanded}
         onTogglePanel={onTogglePanel}
+        attribution={garden.attribution}
       />
       <div className="space-y-4">
         <SelectionBar
@@ -114,30 +116,13 @@ export function DesignerAside({
         {drawing.drawingLabel ? (
           <p className="text-sm font-medium">{drawing.drawingLabel}</p>
         ) : null}
-        <div className="flex gap-1" role="tablist" aria-label="Panels">
-          {(
-            [
-              ["create", "Create"],
-              ["beds", "Beds"],
-              ["plants", "Plants"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              className={
-                panel === id
-                  ? "min-h-8 flex-1 rounded-full bg-leaf px-2 py-1 text-xs text-white"
-                  : "min-h-8 flex-1 rounded-full border border-line bg-card px-2 py-1 text-xs text-ink hover:border-leaf"
-              }
-              type="button"
-              role="tab"
-              aria-selected={panel === id}
-              onClick={() => setPanel(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          label="Panels"
+          value={panel}
+          options={["create", "beds", "plants"]}
+          labels={{ create: "Create", beds: "Beds", plants: "Plants" }}
+          onChange={setPanel}
+        />
       </div>
       {panel === "create" ? (
         <CreatePanel
@@ -187,8 +172,6 @@ export function DesignerAside({
           onCloseMenu={() => edits.setMenu(null)}
           jobCount={jobCount}
           gardenId={garden.id}
-          attribution={garden.attribution}
-          boundary={garden.boundary}
         />
       ) : null}
       {panel === "plants" ? (
@@ -208,8 +191,8 @@ export function DesignerAside({
           onFill={drawing.fillBed}
           placements={garden.placements}
           month={month}
+          gardenId={garden.id}
           onRemoveFromBed={(plantId) => edits.removePlantsOf(plantId, activeBed?.id)}
-          onRemoveEverywhere={(plantId) => edits.removePlantsOf(plantId)}
         />
       ) : null}
     </aside>
