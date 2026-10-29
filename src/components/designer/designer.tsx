@@ -58,7 +58,13 @@ import {
   type ShadeBlock,
   type SunLevel,
 } from "../../domain/types";
-import { formatLength, formatLengthLabel, formatSizeIn, type LengthUnit } from "../../domain/units";
+import {
+  formatEntry,
+  formatLength,
+  formatLengthLabel,
+  formatSizeIn,
+  type LengthUnit,
+} from "../../domain/units";
 import {
   BUILTIN_BED_PRESETS,
   addBedPreset,
@@ -67,10 +73,15 @@ import {
   type BedPreset,
 } from "../../lib/bed-presets";
 import { useGarden } from "../../lib/use-garden";
+import { useUnits } from "../../lib/units";
 import { fetchBuildings } from "../../server/site";
-import { buttonClass, quietButtonClass } from "../chrome";
-import { formatEntry, useUnits } from "../units";
 import { GardenCanvas } from "./garden-canvas";
+
+const buttonClass =
+  "rounded-full bg-leaf px-4 py-2 text-sm text-white transition hover:bg-leaf-dark disabled:cursor-not-allowed disabled:opacity-60";
+
+const quietButtonClass =
+  "rounded-full border border-line bg-card px-4 py-2 text-sm text-ink hover:border-leaf";
 
 type Tool =
   | "select"

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { AppHeader } from "../../../components/chrome";
+import { AppHeader } from "../../../components/app-header/chrome";
 import { GardenDesigner } from "../../../components/designer/designer";
 
 export const Route = createFileRoute("/gardens/$gardenId/")({

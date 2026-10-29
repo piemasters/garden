@@ -23,7 +23,7 @@ import type {
   ShadeBlock,
 } from "../../domain/types";
 import { SURFACE_COLOR, bedSurface } from "../../domain/surface";
-import { useUnits } from "../units";
+import { useUnits } from "../../lib/units";
 import { ShadeBody } from "./shade-shape";
 
 const PLAN_CAMERA_POSITION: [number, number, number] = [0, 40, 0];

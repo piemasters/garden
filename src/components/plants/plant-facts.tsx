@@ -1,10 +1,20 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { GROUP_LABEL, KIND_LABEL, SUN_LABEL } from "../domain/labels";
-import { SEASONS, seasonLook } from "../domain/plants";
-import { MONTH_NAMES, type Plant } from "../domain/types";
-import { formatJobDate } from "../domain/jobs";
-import { useUnits } from "./units";
+import { useUnits } from "#/lib/units";
+import {
+  ASPECT_LABEL,
+  EXPOSURE_LABEL,
+  GROUP_LABEL,
+  KIND_LABEL,
+  MOISTURE_LABEL,
+  PH_LABEL,
+  SOIL_LABEL,
+  SUN_LABEL,
+} from "#/domain/labels";
+import { SEASONS, seasonLook } from "#/domain/plants";
+import { MONTH_NAMES, type Plant } from "#/domain/types";
+import { formatJobDate } from "#/domain/jobs";
+import { Card } from "#/components/generic/card";
 
 export function PlantFacts({ plant }: { plant: Plant }) {
   const { range } = useUnits();
@@ -12,33 +22,39 @@ export function PlantFacts({ plant }: { plant: Plant }) {
   const spread = range(plant.spreadM);
   return (
     <article className="mx-auto max-w-3xl space-y-8">
+      <p>
+        <Link to="/plants" className="text-sm text-leaf underline">
+          Back to the catalogue
+        </Link>
+      </p>
       <header>
         <p className="text-sm uppercase tracking-wide text-soil">
           {GROUP_LABEL[plant.group]} · {KIND_LABEL[plant.kind]}
         </p>
         <h1 className="mt-1 text-4xl">{plant.commonName}</h1>
-        <p className="mt-1 font-serif text-xl italic text-ink/80">
-          {plant.scientificName}
-        </p>
+        <p className="mt-1 font-serif text-xl italic text-ink/80">{plant.scientificName}</p>
         <p className="mt-4 max-w-2xl leading-relaxed">{plant.summary}</p>
       </header>
 
       <section className="grid gap-4 sm:grid-cols-2">
         <Fact title="Growing conditions">
+          <Row label="Soil" value={plant.soils.map((soil) => SOIL_LABEL[soil]).join(", ")} />
           <Row
-            label="Soil"
-            value={plant.soils.map((soil) => soil).join(", ")}
+            label="Moisture"
+            value={plant.moisture.map((level) => MOISTURE_LABEL[level]).join(", ")}
           />
-          <Row label="Moisture" value={plant.moisture.join(", ")} />
-          <Row label="pH" value={plant.ph.join(", ")} />
+          <Row label="pH" value={plant.ph.map((level) => PH_LABEL[level]).join(", ")} />
         </Fact>
         <Fact title="Position">
+          <Row label="Sun" value={plant.sun.map((sun) => SUN_LABEL[sun]).join(", ")} />
           <Row
-            label="Sun"
-            value={plant.sun.map((sun) => SUN_LABEL[sun]).join(", ")}
+            label="Aspect"
+            value={plant.aspect.map((aspect) => ASPECT_LABEL[aspect]).join(", ")}
           />
-          <Row label="Aspect" value={plant.aspect.join(", ")} />
-          <Row label="Exposure" value={plant.exposure.join(", ")} />
+          <Row
+            label="Exposure"
+            value={plant.exposure.map((exposure) => EXPOSURE_LABEL[exposure]).join(", ")}
+          />
           <Row label="Hardiness" value={plant.hardiness} />
         </Fact>
         <Fact title="Size">
@@ -48,17 +64,14 @@ export function PlantFacts({ plant }: { plant: Plant }) {
         </Fact>
         <Fact title="In the garden">
           <p className="text-sm leading-relaxed">{plant.cultivation}</p>
-          <p className="mt-2 text-sm leading-relaxed text-ink/80">
-            {plant.pests}
-          </p>
+          <p className="mt-2 text-sm leading-relaxed text-ink/80">{plant.pests}</p>
         </Fact>
       </section>
 
       <section>
         <h2 className="text-2xl">Colour and scent</h2>
         <p className="mt-1 text-sm text-ink/70">
-          A mark in a season means the plant is doing that for at least part of
-          it.
+          A mark in a season means the plant is doing that for at least part of it.
         </p>
         <table className="mt-3 w-full border-collapse text-left text-sm">
           <thead>
@@ -85,13 +98,8 @@ export function PlantFacts({ plant }: { plant: Plant }) {
         </table>
         <ol className="mt-4 grid grid-cols-3 gap-2 text-xs sm:grid-cols-6">
           {plant.months.map((month, index) => (
-            <li
-              key={MONTH_NAMES[index]}
-              className="rounded-md border border-line bg-card p-2"
-            >
-              <span className="block text-ink/60">
-                {MONTH_NAMES[index]?.slice(0, 3)}
-              </span>
+            <li key={MONTH_NAMES[index]} className="rounded-md border border-line bg-card p-2">
+              <span className="block text-ink/60">{MONTH_NAMES[index]?.slice(0, 3)}</span>
               <span className="mt-1 block">
                 {month.flower ?? (month.foliage ? "Foliage" : "Dormant")}
               </span>
@@ -103,40 +111,29 @@ export function PlantFacts({ plant }: { plant: Plant }) {
       <section>
         <h2 className="text-2xl">Jobs</h2>
         <p className="mt-1 text-sm text-ink/70">
-          These dates suit a mild southern garden. A northern or Scottish plan
-          shifts spring and autumn jobs by a fortnight.
+          These dates suit a mild southern garden. A northern or Scottish plan shifts spring and
+          autumn jobs by a fortnight.
         </p>
         <ul className="mt-3 space-y-3">
           {plant.jobs.map((job) => (
-            <li
-              key={`${job.title}-${job.month}`}
-              className="border-l-2 border-leaf pl-3"
-            >
-              <p className="text-sm text-soil">
-                {formatJobDate(job.month, job.day)}
-              </p>
+            <li key={`${job.title}-${job.month}`} className="border-l-2 border-leaf pl-3">
+              <p className="text-sm text-soil">{formatJobDate(job.month, job.day)}</p>
               <p className="font-medium">{job.title}</p>
               <p className="text-sm leading-relaxed">{job.detail}</p>
             </li>
           ))}
         </ul>
       </section>
-
-      <p>
-        <Link to="/plants" className="text-sm text-leaf underline">
-          Back to the catalogue
-        </Link>
-      </p>
     </article>
   );
 }
 
 function Fact({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-lg border border-line bg-card p-4">
+    <Card>
       <h2 className="text-xl">{title}</h2>
       <div className="mt-2">{children}</div>
-    </section>
+    </Card>
   );
 }
 

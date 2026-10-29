@@ -14,7 +14,7 @@ export const Select = <T extends string>({
   value: T;
   options: readonly T[];
   labels: Record<T, string>;
-  onBlur: () => void;
+  onBlur?: () => void;
   onChange: (value: T) => void;
 }) => {
   return (

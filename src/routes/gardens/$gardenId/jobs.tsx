@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { AppHeader } from "../../../components/chrome";
+import { AppHeader } from "../../../components/app-header/chrome";
 import { buildTimeline, formatJobDate, isColdRegion, jobsByMonth } from "../../../domain/jobs";
 import { PLANTS } from "../../../domain/plants";
 import { useGarden } from "../../../lib/use-garden";

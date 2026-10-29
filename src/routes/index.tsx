@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppHeader } from "#/components/chrome";
+import { AppHeader } from "#/components/app-header/chrome";
 import { CreateGarden } from "#/components/create-garden/create-garden";
 import { SavedGardens } from "#/components/create-garden/saved-gardens";
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  formatEntry,
   formatLengthLabel,
   formatMove,
   formatRange,
@@ -15,6 +16,13 @@ describe("length units", () => {
     expect(formatLengthLabel(2, "m")).toBe("2 m");
     expect(formatLengthLabel(2, "ft")).toBe("6.6 ft");
     expect(formatSizeIn(2, 4, "ft")).toBe("6.6 × 13.1 ft");
+  });
+
+  it("converts a typed length when the unit changes", () => {
+    expect(formatEntry("", "m", "ft")).toBe("");
+    expect(formatEntry("abc", "m", "ft")).toBe("abc");
+    expect(formatEntry("1", "m", "ft")).toBe("3.3");
+    expect(formatEntry("10", "ft", "m")).toBe("3");
   });
 
   it("uses the smaller unit for short spacing", () => {

@@ -15,6 +15,13 @@ export function formatLength(metres: number, unit: LengthUnit): string {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
+export function formatEntry(value: string, from: LengthUnit, to: LengthUnit): string {
+  if (!value.trim()) return "";
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return value;
+  return formatLength(toMetres(amount, from), to);
+}
+
 export function formatLengthLabel(metres: number, unit: LengthUnit): string {
   return `${formatLength(metres, unit)} ${unit}`;
 }

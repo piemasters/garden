@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppHeader } from "../../components/chrome";
-import { PlantFacts } from "../../components/plant-facts";
+import { AppHeader } from "../../components/app-header/chrome";
+import { PlantFacts } from "../../components/plants/plant-facts";
 import { getPlant } from "../../domain/plants";
 
 export const Route = createFileRoute("/plants/$plantId")({

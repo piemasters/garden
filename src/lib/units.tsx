@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import {
-  formatLength,
   formatLengthLabel,
   formatMove,
   formatRange,
@@ -57,11 +56,4 @@ export function useUnits(): UnitsContextValue {
   const value = useContext(UnitsContext);
   if (!value) throw new Error("useUnits must be used within UnitsProvider");
   return value;
-}
-
-export function formatEntry(value: string, from: LengthUnit, to: LengthUnit): string {
-  if (!value.trim()) return "";
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return value;
-  return formatLength(toMetres(amount, from), to);
 }
