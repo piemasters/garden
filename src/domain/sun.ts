@@ -79,6 +79,47 @@ export function rayHitsBox(origin: Vec3, direction: Vec3, block: ShadeBlock): bo
   return far > 0;
 }
 
+const GARDEN_TIME_ZONE = "Europe/London";
+
+/** A clock time in the garden, as an absolute instant. */
+function londonInstant(year: number, month: number, day: number, hour: number): Date {
+  const guess = new Date(Date.UTC(year, month, day, hour, 0));
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: GARDEN_TIME_ZONE,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(guess);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+  const rendered = Date.UTC(
+    value("year"),
+    value("month") - 1,
+    value("day"),
+    value("hour") % 24,
+    value("minute"),
+    value("second"),
+  );
+  return new Date(guess.getTime() - (rendered - guess.getTime()));
+}
+
+/** Sun position at a clock hour on the 15th, in the garden's time zone. */
+export function sunAt(
+  latitude: number,
+  longitude: number,
+  month: number,
+  hour: number,
+  day = 15,
+  year = 2026,
+): SunSample {
+  const position = getPosition(londonInstant(year, month, day, hour), latitude, longitude);
+  return { azimuth: position.azimuth, altitude: position.altitude };
+}
+
 export function daySamples(
   latitude: number,
   longitude: number,

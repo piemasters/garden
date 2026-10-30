@@ -5,6 +5,7 @@ import {
   midsummerSamples,
   rayHitsBox,
   shadowFootprint,
+  sunAt,
   sunlitHours,
   sunVector,
 } from "./sun";
@@ -77,6 +78,17 @@ describe("sun and shade", () => {
     ];
     const hours = sunlitHours(samples, { x: 0, y: 0, z: 0.4 }, [southBlock]);
     expect(hours).toBe(0.5);
+  });
+
+  it("follows the clock from east in the morning to west in the afternoon", () => {
+    const norm = (azimuth: number) => ((azimuth % 360) + 360) % 360;
+    const morning = sunAt(51.5, -0.12, 5, 9);
+    const afternoon = sunAt(51.5, -0.12, 5, 16);
+    expect(morning.altitude).toBeGreaterThan(20);
+    expect(afternoon.altitude).toBeGreaterThan(20);
+    expect(norm(morning.azimuth)).toBeLessThan(180);
+    expect(norm(afternoon.azimuth)).toBeGreaterThan(180);
+    expect(sunAt(51.5, -0.12, 5, 0).altitude).toBeLessThan(0);
   });
 
   it("finds a full day of sun on an open June day in London", () => {

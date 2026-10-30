@@ -49,6 +49,7 @@ function DesignerBody({
   const [selectedPlacementId, setSelectedPlacementId] = useState<string | null>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [month, setMonth] = useState(new Date().getMonth());
+  const [hour, setHour] = useState(new Date().getHours());
   const [panelSize, setPanelSize] = useState<PanelSize>("short");
   const [scale, setScale] = useState<{ metres: number; pixels: number } | null>(null);
   const [bedLabels, setBedLabels] = useState<{ id: string; name: string; x: number; y: number }[]>(
@@ -58,10 +59,11 @@ function DesignerBody({
   const pointerRef = useRef<(clientX: number, clientY: number) => Point | null>(() => null);
 
   useLoadedBuildings(garden, update);
-  const { samples, sunArc, shadeSamples } = useDaylight(
+  const { samples, sunArc, shadeSamples, sunUp } = useDaylight(
     garden.site.latitude,
     garden.site.longitude,
     month,
+    hour,
   );
   const plantsById = useMemo(() => new Map(PLANTS.map((plant) => [plant.id, plant])), []);
   const activeBed = garden.beds.find((bed) => bed.id === selectedBedId) ?? garden.beds[0] ?? null;
@@ -102,6 +104,9 @@ function DesignerBody({
         view={view}
         month={month}
         onMonth={setMonth}
+        hour={hour}
+        onHour={setHour}
+        sunUp={sunUp}
         panelSize={panelSize}
         onTogglePanel={() => setPanelSize((size) => NEXT_PANEL_SIZE[size])}
         samples={samples}

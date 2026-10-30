@@ -23,6 +23,9 @@ export function DesignerAside({
   view,
   month,
   onMonth,
+  hour,
+  onHour,
+  sunUp,
   panelSize,
   onTogglePanel,
   samples,
@@ -41,6 +44,9 @@ export function DesignerAside({
   view: "plan" | "orbit";
   month: number;
   onMonth: (month: number) => void;
+  hour: number;
+  onHour: (hour: number) => void;
+  sunUp: boolean;
   panelSize: "short" | "tall" | "full";
   onTogglePanel: () => void;
   samples: SunSample[];
@@ -95,6 +101,9 @@ export function DesignerAside({
         slopeText={describeSlope(garden.site.slope)}
         month={month}
         onMonth={onMonth}
+        hour={hour}
+        onHour={onHour}
+        sunUp={sunUp}
         surface={groundSurface(garden.surface)}
         hasOutline={Boolean(garden.boundary && garden.boundary.length >= 3)}
         onSurface={(surface) => update((current) => ({ ...current, surface }))}
@@ -117,7 +126,6 @@ export function DesignerAside({
           selectionReady={selectedBlock !== null || bedIsSelected}
           onDuplicate={edits.duplicateSelection}
           onRemove={edits.removeSelection}
-          drawNote={drawing.drawNote}
           selectedBlock={selectedBlock}
           selectedBed={bedIsSelected ? selectedBed : null}
           selectedPlant={selectedBlock ? null : selectedPlant}

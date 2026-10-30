@@ -20,7 +20,6 @@ export function SelectionBar({
   selectionReady: boolean;
   onDuplicate: () => void;
   onRemove: () => void;
-  drawNote: string | null;
   selectedBlock: ShadeBlock | null;
   selectedBed: { name: string; points: Point[] } | null;
   selectedPlant: { name: string; bedName: string | null } | null;

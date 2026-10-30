@@ -21,7 +21,7 @@ export const Button = ({
         variant === "primary" && "bg-leaf hover:bg-leaf-dark text-white",
         variant === "secondary" && "border border-line bg-card text-ink hover:border-leaf",
         variant === "danger" && "border border-line bg-card text-clay hover:border-clay",
-        compact ? "gap-1 px-2 py-1 text-sm!" : "gap-2 px-4 py-2 text-base!",
+        compact ? "gap-1 px-2 py-1 text-sm" : "gap-2 px-4 py-2 text-base",
         className,
       )}
       {...props}

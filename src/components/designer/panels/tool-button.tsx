@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
-import { twMerge } from "tailwind-merge";
-import type { Tool } from "../tools";
 import { Button } from "#/components/generic/button";
+import type { Tool } from "../tools";
 
 type ToolButtonProps = {
   title?: string;

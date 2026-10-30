@@ -8,6 +8,9 @@ export function SiteSummary({
   slopeText,
   month,
   onMonth,
+  hour,
+  onHour,
+  sunUp,
   surface,
   hasOutline,
   onSurface,
@@ -27,6 +30,9 @@ export function SiteSummary({
   slopeText: string | null;
   month: number;
   onMonth: (month: number) => void;
+  hour: number;
+  onHour: (hour: number) => void;
+  sunUp: boolean;
   surface: GroundSurface;
   hasOutline: boolean;
   onSurface: (surface: GroundSurface) => void;
@@ -94,6 +100,18 @@ export function SiteSummary({
               onChange={(event) => onMonth(Number(event.target.value))}
             />
           </label>
+          <label className="block text-sm">
+            {clockLabel(hour)}
+            <input
+              className="mt-1 w-full"
+              type="range"
+              min={0}
+              max={23}
+              value={hour}
+              aria-label="Time of day"
+              onChange={(event) => onHour(Number(event.target.value))}
+            />
+          </label>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             <label className="flex items-center gap-2 text-xs">
               <input
@@ -114,7 +132,9 @@ export function SiteSummary({
           </div>
           {showShade ? (
             <p className="text-xs text-ink/60">
-              Shadows show where shade falls in the middle of this month.
+              {sunUp
+                ? `Shadows show where shade falls at ${clockLabel(hour).toLowerCase()} in the middle of this month.`
+                : `The sun is below the horizon at ${clockLabel(hour).toLowerCase()} in the middle of this month.`}
             </p>
           ) : null}
           <p className="text-xs text-ink/60">
@@ -162,4 +182,12 @@ export function SiteSummary({
       </button>
     </div>
   );
+}
+
+function clockLabel(hour: number): string {
+  if (hour === 0) return "Midnight";
+  if (hour === 12) return "Noon";
+  const suffix = hour < 12 ? "am" : "pm";
+  const hour12 = hour % 12 || 12;
+  return `${hour12} ${suffix}`;
 }
