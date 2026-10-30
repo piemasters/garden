@@ -2,10 +2,10 @@ import { describe, expect, it } from "vite-plus/test";
 import { getPlant, hasFlowerColour, PLANTS } from "./plants";
 
 describe("plant catalog", () => {
-  it("has a full record for each of 36 plants, bulbs and seeds", () => {
-    expect(PLANTS).toHaveLength(36);
+  it("has a full record for each plant, bulb and seed", () => {
+    expect(PLANTS).toHaveLength(56);
     const ids = new Set(PLANTS.map((plant) => plant.id));
-    expect(ids.size).toBe(36);
+    expect(ids.size).toBe(56);
     for (const plant of PLANTS) {
       expect(plant.months).toHaveLength(12);
       expect(plant.jobs.length).toBeGreaterThan(0);
@@ -17,10 +17,10 @@ describe("plant catalog", () => {
       }
     }
     expect(PLANTS.filter((plant) => plant.kind === "bulb")).toHaveLength(12);
-    expect(PLANTS.filter((plant) => plant.kind === "seed")).toHaveLength(12);
+    expect(PLANTS.filter((plant) => plant.kind === "seed")).toHaveLength(24);
     expect(PLANTS.filter((plant) => plant.group === "flower")).toHaveLength(29);
-    expect(PLANTS.filter((plant) => plant.group === "vegetable")).toHaveLength(6);
-    expect(PLANTS.filter((plant) => plant.group === "fruit")).toHaveLength(1);
+    expect(PLANTS.filter((plant) => plant.group === "vegetable")).toHaveLength(18);
+    expect(PLANTS.filter((plant) => plant.group === "fruit")).toHaveLength(9);
     expect(PLANTS.some((plant) => plant.id === "tulipa-olympic-flame")).toBe(true);
   });
 

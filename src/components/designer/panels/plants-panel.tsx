@@ -12,6 +12,7 @@ import {
 } from "#/components/plants/plant-filters";
 import { Tabs } from "#/components/generic/tabs";
 import { quietButtonClass } from "../tools";
+import { PlantImage } from "#/components/plants/plant-image";
 import { PlantedGroups, groupPlantings } from "./planted-groups";
 
 type Verdict = ReturnType<typeof recommendPlants>[number];
@@ -114,39 +115,45 @@ export function PlantsPanel({
       <ul className="space-y-2">
         {recommendations.map((verdict) => (
           <li key={verdict.plant.id} className="rounded-md border border-line bg-card p-3">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <Link
-                  to="/plants/$plantId"
-                  params={{ plantId: verdict.plant.id }}
-                  className="font-medium hover:text-leaf"
-                >
-                  {verdict.plant.commonName}
-                </Link>
-                <p className="text-xs text-ink/60">
-                  {KIND_LABEL[verdict.plant.kind]} · {verdict.plant.hardiness}
-                </p>
+            <div className="flex items-start gap-3">
+              <Link
+                to="/plants/$plantId"
+                params={{ plantId: verdict.plant.id }}
+                className="flex min-w-0 flex-1 gap-3 hover:text-leaf"
+              >
+                <PlantImage
+                  plantId={verdict.plant.id}
+                  className="h-14 w-14 shrink-0 rounded-md object-cover"
+                />
+                <span>
+                  <span className="block font-medium">{verdict.plant.commonName}</span>
+                  <span className="block text-xs text-ink/60">
+                    {KIND_LABEL[verdict.plant.kind]} · {verdict.plant.hardiness}
+                  </span>
+                </span>
+              </Link>
+              <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
+                {verdict.suitable && activeBed ? (
+                  <div className="flex shrink-0 gap-1">
+                    <button
+                      className={`${quietButtonClass} px-3`}
+                      type="button"
+                      onClick={() => onPlace(verdict.plant.id)}
+                    >
+                      Place
+                    </button>
+                    <button
+                      className={`${quietButtonClass} px-3`}
+                      type="button"
+                      title={`${units.spacing(plantingSpacing(verdict.plant.spreadM))} apart`}
+                      aria-label={`Fill ${activeBed.name} with ${verdict.plant.commonName}, ${units.spacing(plantingSpacing(verdict.plant.spreadM))} apart`}
+                      onClick={() => onFill(verdict.plant)}
+                    >
+                      Fill
+                    </button>
+                  </div>
+                ) : null}
               </div>
-              {verdict.suitable && activeBed ? (
-                <div className="flex shrink-0 gap-1">
-                  <button
-                    className={`${quietButtonClass} px-3`}
-                    type="button"
-                    onClick={() => onPlace(verdict.plant.id)}
-                  >
-                    Place
-                  </button>
-                  <button
-                    className={`${quietButtonClass} px-3`}
-                    type="button"
-                    title={`${units.spacing(plantingSpacing(verdict.plant.spreadM))} apart`}
-                    aria-label={`Fill ${activeBed.name} with ${verdict.plant.commonName}, ${units.spacing(plantingSpacing(verdict.plant.spreadM))} apart`}
-                    onClick={() => onFill(verdict.plant)}
-                  >
-                    Fill
-                  </button>
-                </div>
-              ) : null}
             </div>
             {verdict.suitable ? null : (
               <ul className="mt-2 list-disc pl-4 text-xs text-clay">

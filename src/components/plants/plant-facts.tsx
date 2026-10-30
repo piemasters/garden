@@ -15,6 +15,8 @@ import { SEASONS, seasonLook } from "#/domain/plants";
 import { MONTH_NAMES, type Plant } from "#/domain/types";
 import { formatJobDate } from "#/domain/jobs";
 import { Card } from "#/components/generic/card";
+import { plantPhoto } from "#/domain/plant-photos";
+import { PlantImage, PlantPhotoCredit } from "./plant-image";
 
 export function PlantFacts({ plant }: { plant: Plant }) {
   const { range } = useUnits();
@@ -33,6 +35,15 @@ export function PlantFacts({ plant }: { plant: Plant }) {
         </p>
         <h1 className="mt-1 text-4xl">{plant.commonName}</h1>
         <p className="mt-1 font-serif text-xl italic text-ink/80">{plant.scientificName}</p>
+        {plantPhoto(plant.id) ? (
+          <figure className="mt-5">
+            <PlantImage
+              plantId={plant.id}
+              className="aspect-[3/2] w-full rounded-lg object-cover"
+            />
+            <PlantPhotoCredit plantId={plant.id} />
+          </figure>
+        ) : null}
         <p className="mt-4 max-w-2xl leading-relaxed">{plant.summary}</p>
       </header>
 
