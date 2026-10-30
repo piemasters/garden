@@ -11,7 +11,6 @@ export function SelectionBar({
   selectionReady,
   onDuplicate,
   onRemove,
-  drawNote,
   selectedBlock,
   selectedBed,
   selectedPlant,
@@ -46,17 +45,26 @@ export function SelectionBar({
         >
           {SELECT_TOOL.label}
         </ToolButton>
-        <button
-          className="inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf disabled:cursor-not-allowed disabled:opacity-60"
-          type="button"
+        <ToolButton
+          compact
+          icon={<DuplicateIcon />}
           disabled={!selectionReady}
           title="Copy the selected bed or shade area and place it beside the original."
           onClick={onDuplicate}
         >
-          <DuplicateIcon />
           Duplicate
-        </button>
-        <ToolButton compact current={tool} tool="move" onClick={onTool}>
+        </ToolButton>
+        <ToolButton
+          compact
+          danger
+          icon={<RemoveIcon />}
+          disabled={!selectionReady}
+          title="Remove the selected bed or shade area."
+          onClick={onRemove}
+        >
+          Remove
+        </ToolButton>
+        {/* <ToolButton compact current={tool} tool="move" onClick={onTool}>
           Move
         </ToolButton>
         <ToolButton compact current={tool} tool="rotate" onClick={onTool}>
@@ -64,45 +72,10 @@ export function SelectionBar({
         </ToolButton>
         <ToolButton compact current={tool} tool="scale" onClick={onTool}>
           Scale
-        </ToolButton>
-        <button
-          className="inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-clay hover:border-clay disabled:cursor-not-allowed disabled:opacity-60"
-          type="button"
-          disabled={!selectionReady}
-          title="Remove the selected bed or shade area."
-          onClick={onRemove}
-        >
-          <RemoveIcon />
-          Remove
-        </button>
+        </ToolButton> */}
       </div>
-      {tool === "select" || tool === "move" || tool === "rotate" || tool === "scale" ? (
-        <div className="hidden lg:block">
-          {tool === "select" ? (
-            <p className="text-xs leading-snug text-ink/70">{SELECT_TOOL.help}</p>
-          ) : null}
-          {tool === "move" ? (
-            <p className="text-xs leading-snug text-ink/70">
-              Drag a bed to move it. The move snaps to {units.length(0.5)}, and plants come with it.
-              {drawNote ? ` ${drawNote}` : ""}
-            </p>
-          ) : null}
-          {tool === "rotate" ? (
-            <p className="text-xs leading-snug text-ink/70">
-              Drag a bed to turn it. The angle snaps to 5°, and plants in the bed turn with it.
-              {drawNote ? ` ${drawNote}` : ""}
-            </p>
-          ) : null}
-          {tool === "scale" ? (
-            <p className="text-xs leading-snug text-ink/70">
-              Drag from the edge of a bed. Pull outward to enlarge it, or inward to shrink it.
-              {drawNote ? ` ${drawNote}` : ""}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
       {selection ? (
-        <p className="text-sm mt-2">
+        <p className="text-sm mt-4">
           Selected: <span className="pl-1 text-leaf">{selection}</span>
         </p>
       ) : null}

@@ -114,7 +114,7 @@ export function PlantsPanel({
             : "Nothing in this list suits this bed."}
         </p>
       ) : null}
-      <ul className="space-y-3">
+      <ul className="space-y-1">
         {recommendations.map((verdict) => (
           <li key={verdict.plant.id} className="rounded-md border border-line bg-card p-3">
             <div className="flex gap-3">

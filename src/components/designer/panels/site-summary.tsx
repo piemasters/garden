@@ -1,6 +1,6 @@
 import { ASPECT_LABEL, MOISTURE_LABEL, PH_LABEL, SOIL_LABEL } from "#/domain/labels";
 import { MONTH_NAMES, type Garden, type GroundSurface } from "#/domain/types";
-import { GroundChoices } from "./ground-choices";
+import { SurfaceChoices } from "./bed-colours";
 import { PanelCaret } from "./icons";
 
 export function SiteSummary({
@@ -19,6 +19,9 @@ export function SiteSummary({
   panelSize,
   onTogglePanel,
   attribution,
+  buildingsLoaded,
+  buildingError,
+  hasOsmBuildings,
 }: {
   site: Garden["site"];
   slopeText: string | null;
@@ -35,6 +38,9 @@ export function SiteSummary({
   panelSize: "short" | "tall" | "full";
   onTogglePanel: () => void;
   attribution: string | null;
+  buildingsLoaded: boolean;
+  buildingError: string | null;
+  hasOsmBuildings: boolean;
 }) {
   return (
     <div className="flex items-start gap-2">
@@ -52,20 +58,33 @@ export function SiteSummary({
           <p className="text-sm text-ink/70">
             {site.postcode} · {site.region}
           </p>
-          {slopeText ? <p className="text-sm text-ink/70">{slopeText}</p> : null}
         </summary>
-        <div className="mt-2 space-y-3">
+        <div className="mt-2 space-y-2">
           <p className="text-sm">
             {SOIL_LABEL[site.soil]} · {MOISTURE_LABEL[site.moisture]} · {PH_LABEL[site.ph]} ·{" "}
             {ASPECT_LABEL[site.aspect]}
           </p>
-          {site.address ? <p className="text-sm text-ink/70">{site.address}</p> : null}
           {site.soilSuggestion ? (
             <p className="text-xs text-ink/60">{site.soilSuggestion.label}</p>
           ) : null}
-          <GroundChoices surface={surface} hasOutline={hasOutline} onSurface={onSurface} />
+          {slopeText ? <p className="text-sm">{slopeText}</p> : null}
+          {site.address ? <p className="text-sm">{site.address}</p> : null}
+
+          <div>
+            <SurfaceChoices
+              label="Ground"
+              surface={surface}
+              emptyLabel={null}
+              onSurface={(next) => {
+                if (next) onSurface(next);
+              }}
+            />
+            <p className="mt-1 text-xs text-ink/60">
+              {hasOutline ? "Fills the property outline." : "Fills the whole plan."}
+            </p>
+          </div>
           <label className="block text-sm">
-            Month
+            {MONTH_NAMES[month]}
             <input
               className="mt-1 w-full"
               type="range"
@@ -74,7 +93,6 @@ export function SiteSummary({
               value={month}
               onChange={(event) => onMonth(Number(event.target.value))}
             />
-            <span className="font-medium">{MONTH_NAMES[month]}</span>
           </label>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             <label className="flex items-center gap-2 text-xs">
@@ -99,6 +117,15 @@ export function SiteSummary({
               Shadows show where shade falls in the middle of this month.
             </p>
           ) : null}
+          <p className="text-xs text-ink/60">
+            {!buildingsLoaded
+              ? "Loading nearby buildings…"
+              : buildingError
+                ? buildingError
+                : hasOsmBuildings
+                  ? "Grey blocks are OpenStreetMap buildings. Heights are often a guess. Delete any that are wrong."
+                  : "No building outlines were added for this point. You can draw shade blocks yourself."}
+          </p>
           {view === "plan" ? (
             <p className="text-xs leading-snug text-ink/60">
               Pinch or scroll to zoom. Drag empty ground to move around. Double-click to centre the

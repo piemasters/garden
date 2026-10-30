@@ -1,6 +1,13 @@
-import { SUN_LABEL } from "#/domain/labels";
+import { Select } from "#/components/generic/select";
+import { SOIL_LABEL, SUN_LABEL } from "#/domain/labels";
 import { bedSurface } from "#/domain/surface";
-import { SUN_LEVELS, type GroundSurface, type SunLevel } from "#/domain/types";
+import {
+  SOIL_TYPES,
+  SUN_LEVELS,
+  type GroundSurface,
+  type SoilType,
+  type SunLevel,
+} from "#/domain/types";
 import { isCustomShade } from "../drawing";
 import { BedColours, SurfaceChoices } from "./bed-colours";
 import { ShadeHeight } from "./shade-height";
@@ -17,6 +24,8 @@ export function ShapeMenu({
   onSurface,
   calculatedLight,
   onLight,
+  gardenSoil,
+  onSoil,
   onRaised,
   onDuplicateBed,
   onDeleteBed,
@@ -31,6 +40,7 @@ export function ShapeMenu({
     color?: string;
     surface?: GroundSurface;
     lightOverride: SunLevel | null;
+    soilOverride?: SoilType | null;
     raised?: boolean;
   } | null;
   block: {
@@ -44,9 +54,11 @@ export function ShapeMenu({
   plantCount: number;
   onRename: (name: string) => void;
   onColour: (color: string) => void;
-  onSurface: (surface: GroundSurface) => void;
+  onSurface: (surface: GroundSurface | null) => void;
   calculatedLight: SunLevel | null;
   onLight: (lightOverride: SunLevel | null) => void;
+  gardenSoil: SoilType;
+  onSoil: (soilOverride: SoilType | null) => void;
   onRaised: (raised: boolean) => void;
   onDuplicateBed: () => void;
   onDeleteBed: () => void;
@@ -86,27 +98,32 @@ export function ShapeMenu({
                 onSurface={onSurface}
               />
               {calculatedLight ? (
-                <label className="block text-sm">
-                  Light for {bed.name}
-                  <select
-                    className="mt-1 w-full rounded-md border border-line bg-paper px-2 py-1"
-                    value={bed.lightOverride ?? "calculated"}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      onLight(value === "calculated" ? null : (value as SunLevel));
-                    }}
-                  >
-                    <option value="calculated">
-                      Use the sun calculation ({SUN_LABEL[calculatedLight]})
-                    </option>
-                    {SUN_LEVELS.map((level) => (
-                      <option key={level} value={level}>
-                        Override: {SUN_LABEL[level]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <Select
+                  label={`Light for ${bed.name}`}
+                  value={bed.lightOverride ?? "calculated"}
+                  options={["calculated", ...SUN_LEVELS]}
+                  labels={{
+                    calculated: `Use the sun calculation (${SUN_LABEL[calculatedLight]})`,
+                    "full-sun": `Override: ${SUN_LABEL["full-sun"]}`,
+                    "partial-sun": `Override: ${SUN_LABEL["partial-sun"]}`,
+                    shade: `Override: ${SUN_LABEL.shade}`,
+                  }}
+                  onChange={(value) => onLight(value === "calculated" ? null : value)}
+                />
               ) : null}
+              <Select
+                label={`Soil for ${bed.name}`}
+                value={bed.soilOverride ?? "garden"}
+                options={["garden", ...SOIL_TYPES]}
+                labels={{
+                  garden: `Use the garden soil (${SOIL_LABEL[gardenSoil]})`,
+                  chalk: `Override: ${SOIL_LABEL.chalk}`,
+                  clay: `Override: ${SOIL_LABEL.clay}`,
+                  loam: `Override: ${SOIL_LABEL.loam}`,
+                  sand: `Override: ${SOIL_LABEL.sand}`,
+                }}
+                onChange={(value) => onSoil(value === "garden" ? null : value)}
+              />
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -135,7 +152,11 @@ export function ShapeMenu({
           </div>
           {isCustomShade(block) ? (
             <div className="px-3 py-1.5">
-              <SurfaceChoices surface={bedSurface(block.surface)} onSurface={onSurface} />
+              <SurfaceChoices
+                surface={bedSurface(block.surface)}
+                onSurface={onSurface}
+                emptyLabel="Plain"
+              />
             </div>
           ) : null}
           <button className={itemClass} type="button" onClick={onDuplicateBlock}>

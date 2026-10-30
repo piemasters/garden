@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Link } from "@tanstack/react-router";
-import { SUN_LABEL } from "#/domain/labels";
+import { SOIL_LABEL, SUN_LABEL } from "#/domain/labels";
 import { midsummerSamples } from "#/domain/sun";
 import type { Garden, ShadeBlock } from "#/domain/types";
 import { useUnits } from "#/lib/units";
@@ -137,6 +137,7 @@ export function BedsPanel({
                     {bedSize(points, units.unit)} · {SUN_LABEL[light.light]} ·{" "}
                     {light.hours.toFixed(1)} h of midsummer sun
                     {bed.lightOverride ? " · override" : ""}
+                    {bed.soilOverride ? ` · ${SOIL_LABEL[bed.soilOverride]}` : ""}
                   </span>
                 </button>
                 <button
@@ -166,7 +167,7 @@ export function BedsPanel({
         Shade areas
         <span className="text-sm font-normal text-ink/50">{blocks.length}</span>
       </h2>
-      <ul className="mt-2 space-y-2 text-sm">
+      <ul className="mt-2 space-y-1 text-sm">
         {blocks.map((item) => {
           const block = adjust?.block?.id === item.id ? adjust.block : item;
           const selected = block.id === selectedBlockId;

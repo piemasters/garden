@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { translatePoints } from "#/domain/geometry";
-import type { Garden, GroundSurface, SunLevel } from "#/domain/types";
+import type { Garden, GroundSurface, SoilType, SunLevel } from "#/domain/types";
 import { copyName } from "./drawing";
 import type { ShapeMenu as ShapeMenuState, Tool } from "./tools";
 
@@ -24,10 +24,16 @@ export function setBedColour(session: EditSession, id: string, color: string) {
   }));
 }
 
-export function setBedSurface(session: EditSession, id: string, surface: GroundSurface) {
+export function setBedSurface(session: EditSession, id: string, surface: GroundSurface | null) {
   session.update((current) => ({
     ...current,
-    beds: current.beds.map((bed) => (bed.id === id ? { ...bed, surface, color: undefined } : bed)),
+    beds: current.beds.map((bed) =>
+      bed.id === id
+        ? surface
+          ? { ...bed, surface, color: undefined }
+          : { ...bed, surface: undefined }
+        : bed,
+    ),
   }));
 }
 
@@ -39,14 +45,12 @@ export function setBlockHeight(session: EditSession, id: string, height: number)
   }));
 }
 
-/** Choosing the current material again returns the block to its plain finish. */
-export function setBlockSurface(session: EditSession, id: string, surface: GroundSurface) {
+/** A missing material returns the block to its plain finish. */
+export function setBlockSurface(session: EditSession, id: string, surface: GroundSurface | null) {
   session.update((current) => ({
     ...current,
     blocks: current.blocks.map((block) =>
-      block.id === id
-        ? { ...block, surface: block.surface === surface ? undefined : surface }
-        : block,
+      block.id === id ? { ...block, surface: surface ?? undefined } : block,
     ),
   }));
 }
@@ -55,6 +59,13 @@ export function setBedLight(session: EditSession, id: string, lightOverride: Sun
   session.update((current) => ({
     ...current,
     beds: current.beds.map((bed) => (bed.id === id ? { ...bed, lightOverride } : bed)),
+  }));
+}
+
+export function setBedSoil(session: EditSession, id: string, soilOverride: SoilType | null) {
+  session.update((current) => ({
+    ...current,
+    beds: current.beds.map((bed) => (bed.id === id ? { ...bed, soilOverride } : bed)),
   }));
 }
 

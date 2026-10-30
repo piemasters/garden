@@ -1,33 +1,46 @@
-import { buttonClass, quietButtonClass, type Tool } from "../tools";
+import type { ReactNode } from "react";
+import { twMerge } from "tailwind-merge";
+import type { Tool } from "../tools";
+import { Button } from "#/components/generic/button";
 
-export function ToolButton({
-  current,
-  tool,
-  onClick,
-  title,
-  compact = false,
-  children,
-}: {
-  current: Tool;
-  tool: Tool;
-  onClick: (tool: Tool) => void;
+type ToolButtonProps = {
   title?: string;
   compact?: boolean;
+  disabled?: boolean;
+  /** Clay text, used for Remove. */
+  danger?: boolean;
   children: string;
-}) {
-  const selected = current === tool;
-  const className = compact
-    ? selected
-      ? "inline-flex min-h-8 items-center gap-1 rounded-full bg-leaf px-2 py-1 text-[11px] text-white hover:bg-leaf-dark"
-      : "inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf"
-    : selected
-      ? buttonClass
-      : quietButtonClass;
+} & (
+  | {
+      current: Tool;
+      tool: Tool;
+      onClick: (tool: Tool) => void;
+    }
+  | {
+      icon?: ReactNode;
+      selected?: boolean;
+      onClick: () => void;
+    }
+);
+
+export function ToolButton(props: ToolButtonProps) {
+  const { title, compact = false, disabled = false, danger = false, children } = props;
+  const action = !("tool" in props);
+  const selected = action ? Boolean(props.selected) : props.current === props.tool;
   return (
-    <button className={className} type="button" title={title} onClick={() => onClick(tool)}>
-      {compact ? <DrawToolIcon tool={tool} /> : null}
+    <Button
+      variant={danger ? "danger" : selected ? "primary" : "secondary"}
+      compact={compact}
+      title={title}
+      disabled={disabled}
+      onClick={() => {
+        if (action) props.onClick();
+        else props.onClick(props.tool);
+      }}
+    >
+      {action ? props.icon : compact ? <DrawToolIcon tool={props.tool} /> : null}
       {children}
-    </button>
+    </Button>
   );
 }
 

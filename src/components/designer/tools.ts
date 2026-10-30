@@ -1,11 +1,5 @@
 import type { Point, ShadeBlock } from "#/domain/types";
 
-export const buttonClass =
-  "rounded-full bg-leaf px-4 py-2 text-sm text-white transition hover:bg-leaf-dark disabled:cursor-not-allowed disabled:opacity-60";
-
-export const quietButtonClass =
-  "rounded-full border border-line bg-card px-4 py-2 text-sm text-ink hover:border-leaf";
-
 export type Tool =
   | "select"
   | "bed"
@@ -21,29 +15,29 @@ export type Tool =
 export const SELECT_TOOL = {
   tool: "select" as const,
   label: "Select",
-  help: "Click a bed to select it, or drag it to move. Drag empty ground to slide the plan.",
+  help: "Click a bed to select it, or drag it to move.",
 };
 
 export const BED_TOOLS: { tool: Tool; label: string; help: string }[] = [
   {
     tool: "rect",
     label: "Rectangle",
-    help: "Drag from one corner to the other. Corners snap to half metres.",
+    help: "Drag one corner to the other. Snaps to half metres.",
   },
   {
     tool: "angled",
     label: "Angled",
-    help: "Click both ends of one side, then click again to set the width.",
+    help: "Click twice to set width, then again to set length.",
   },
   {
     tool: "freeform",
     label: "Freeform",
-    help: "Drag around the bed. Release to close and smooth the outline.",
+    help: "Drag to draw, then release to close and smooth.",
   },
   {
     tool: "bed",
     label: "Outline",
-    help: "Click each corner, then the first corner again to close the bed.",
+    help: "Click each corner, then the first corner again to close.",
   },
 ];
 

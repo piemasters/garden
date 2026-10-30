@@ -244,6 +244,8 @@ export function PlanStage({
               : edits.setBedSurface(menu.id, surface)
           }
           onLight={(lightOverride) => edits.setBedLight(menu.id, lightOverride)}
+          gardenSoil={garden.site.soil}
+          onSoil={(soilOverride) => edits.setBedSoil(menu.id, soilOverride)}
           onRaised={(raised) => edits.setBedRaised(menu.id, raised)}
           onDuplicateBed={() => edits.duplicateBed(menu.id)}
           onDeleteBed={() => edits.removeBed(menu.id)}

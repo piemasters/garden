@@ -70,7 +70,7 @@ export function DesignerAside({
         PLANTS.filter(
           (plant) => plant.group === plantGroup && plantMatchesListFilter(plant, plantFilter),
         ),
-        garden.site,
+        { ...garden.site, soil: activeBed?.soilOverride ?? garden.site.soil },
         activeLight.light,
         garden.showUnsuitable,
       )
@@ -89,7 +89,7 @@ export function DesignerAside({
   const jobCount = buildTimeline(PLANTS, garden.placements, garden.site).length;
 
   return (
-    <aside className="order-2 min-h-0 flex-1 space-y-4 overflow-y-auto border-t border-line p-4 max-lg:landscape:hidden lg:order-1 lg:w-80 lg:flex-none lg:border-t-0 lg:border-r">
+    <aside className="order-2 min-h-0 flex-1 space-y-2 overflow-y-auto border-t border-line p-4 max-lg:landscape:hidden lg:order-1 lg:w-80 lg:flex-none lg:border-t-0 lg:border-r">
       <SiteSummary
         site={garden.site}
         slopeText={describeSlope(garden.site.slope)}
@@ -106,8 +106,11 @@ export function DesignerAside({
         panelSize={panelSize}
         onTogglePanel={onTogglePanel}
         attribution={garden.attribution}
+        buildingsLoaded={garden.buildingsLoaded}
+        buildingError={garden.buildingError}
+        hasOsmBuildings={garden.blocks.some((block) => block.source === "osm")}
       />
-      <div className="space-y-4">
+      <div className="space-y-2">
         <SelectionBar
           tool={drawing.tool}
           onTool={drawing.chooseTool}
@@ -154,9 +157,6 @@ export function DesignerAside({
           shadePreset={drawing.shadePreset}
           onArmShade={drawing.armShade}
           hasOutline={Boolean(garden.boundary && garden.boundary.length >= 3)}
-          buildingsLoaded={garden.buildingsLoaded}
-          buildingError={garden.buildingError}
-          hasOsmBuildings={garden.blocks.some((block) => block.source === "osm")}
           selectedBlock={selectedBlock}
           onHeight={(height) => {
             if (!selectedBlock) return;

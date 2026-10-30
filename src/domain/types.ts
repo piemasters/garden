@@ -105,6 +105,8 @@ export interface Bed {
   name: string;
   points: Point[];
   lightOverride: SunLevel | null;
+  /** Missing or null means this bed uses the garden's soil. */
+  soilOverride?: SoilType | null;
   /** Fill colour as #rrggbb. Missing means the default soil brown. Ignored when `surface` is set. */
   color?: string;
   /** Material fill. When set, it replaces the flat colour. */

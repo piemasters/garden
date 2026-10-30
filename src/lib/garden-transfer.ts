@@ -140,6 +140,9 @@ function isBed(value: unknown): boolean {
     typeof value.name === "string" &&
     isPointList(value.points) &&
     (value.lightOverride === null || oneOf(value.lightOverride, SUN_LEVELS)) &&
+    (value.soilOverride === undefined ||
+      value.soilOverride === null ||
+      oneOf(value.soilOverride, SOIL_TYPES)) &&
     (value.color === undefined || typeof value.color === "string") &&
     (value.surface === undefined || oneOf(value.surface, GROUND_SURFACES)) &&
     (value.raised === undefined || typeof value.raised === "boolean")

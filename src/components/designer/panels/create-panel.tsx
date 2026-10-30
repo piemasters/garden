@@ -7,6 +7,7 @@ import { BED_TOOLS, CUSTOM_SHADE, SHADE_PRESETS, type ShadePreset, type Tool } f
 import { ShadeAreaIcon } from "./icons";
 import { ShadeHeight } from "./shade-height";
 import { ToolButton } from "./tool-button";
+import { Button } from "#/components/generic/button";
 
 export function CreatePanel({
   tool,
@@ -27,9 +28,6 @@ export function CreatePanel({
   shadePreset,
   onArmShade,
   hasOutline,
-  buildingsLoaded,
-  buildingError,
-  hasOsmBuildings,
   selectedBlock,
   onHeight,
 }: {
@@ -51,9 +49,6 @@ export function CreatePanel({
   shadePreset: ShadePreset | null;
   onArmShade: (preset: ShadePreset) => void;
   hasOutline: boolean;
-  buildingsLoaded: boolean;
-  buildingError: string | null;
-  hasOsmBuildings: boolean;
   selectedBlock: ShadeBlock | null;
   onHeight: (height: number) => void;
 }) {
@@ -78,21 +73,14 @@ export function CreatePanel({
         </div>
         {BED_TOOLS.some((item) => item.tool === tool) ? (
           <p className="text-xs leading-snug text-ink/70">
-            {tool === "rect"
-              ? `Drag from one corner to the other. Corners snap to ${units.length(0.5)}.`
-              : BED_TOOLS.find((item) => item.tool === tool)?.help}
+            {BED_TOOLS.find((item) => item.tool === tool)?.help}
           </p>
         ) : null}
         {tool === "freeform" && drawNote ? <p className="text-xs text-ink/70">{drawNote}</p> : null}
         {tool === "bed" ? (
-          <button
-            className="min-h-8 rounded-full border border-line bg-card px-2.5 py-1 text-xs text-ink hover:border-leaf disabled:cursor-not-allowed disabled:opacity-60"
-            type="button"
-            disabled={draftCount < 3}
-            onClick={onFinishBed}
-          >
+          <ToolButton compact disabled={draftCount < 3} onClick={onFinishBed}>
             Finish bed
-          </button>
+          </ToolButton>
         ) : null}
       </div>
       <div className="space-y-2">
@@ -107,17 +95,13 @@ export function CreatePanel({
             const custom = !BUILTIN_BED_PRESETS.some((builtin) => builtin.id === item.id);
             return (
               <span key={item.id} className="inline-flex items-center">
-                <button
-                  className={
-                    armed
-                      ? "min-h-8 rounded-full bg-leaf px-2 py-1 text-[11px] text-white"
-                      : "min-h-8 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf"
-                  }
-                  type="button"
+                <ToolButton
+                  compact
+                  selected={armed}
                   onClick={() => onArmPreset(item.widthM, item.depthM)}
                 >
                   {units.size(item.widthM, item.depthM)}
-                </button>
+                </ToolButton>
                 {custom ? (
                   <button
                     className="ml-0.5 min-h-8 px-1 text-xs text-ink/50 hover:text-ink"
@@ -141,41 +125,35 @@ export function CreatePanel({
         <form className="flex flex-wrap items-end gap-1" onSubmit={onAddPreset}>
           <PresetSizeField label="Width" value={presetWidth} onChange={onPresetWidth} />
           <PresetSizeField label="Depth" value={presetDepth} onChange={onPresetDepth} />
-          <button
-            className="self-end rounded-full border border-line bg-card px-3 py-1 text-sm text-ink hover:border-leaf"
-            type="submit"
-          >
+          <Button variant="secondary" compact type="submit">
             Add
-          </button>
+          </Button>
         </form>
         {presetError ? <p className="text-xs text-clay">{presetError}</p> : null}
       </div>
       <div className="space-y-1">
         <p className="text-xs font-medium text-ink/60">Create Shade Areas</p>
         <div className="flex flex-wrap gap-1">
-          {SHADE_PRESETS.map((item) => {
-            const armed = shadePreset?.label === item.label;
-            return (
-              <button
-                key={item.label}
-                className={shadeButtonClass(armed)}
-                type="button"
-                onClick={() => onArmShade(item)}
-              >
-                <ShadeAreaIcon kind={item.label} />
-                {item.label}
-              </button>
-            );
-          })}
-          <button
-            className={shadeButtonClass(tool === "block" && !shadePreset)}
-            type="button"
+          {SHADE_PRESETS.map((item) => (
+            <ToolButton
+              key={item.label}
+              compact
+              selected={shadePreset?.label === item.label}
+              icon={<ShadeAreaIcon kind={item.label} />}
+              onClick={() => onArmShade(item)}
+            >
+              {item.label}
+            </ToolButton>
+          ))}
+          <ToolButton
+            compact
+            selected={tool === "block" && !shadePreset}
+            icon={<ShadeAreaIcon kind="Custom" />}
             title={CUSTOM_SHADE.help}
             onClick={() => onTool(CUSTOM_SHADE.tool)}
           >
-            <ShadeAreaIcon kind="Custom" />
             {CUSTOM_SHADE.label}
-          </button>
+          </ToolButton>
         </div>
         {shadePreset ? (
           <p className="text-xs leading-snug text-ink/70">
@@ -190,23 +168,8 @@ export function CreatePanel({
         ) : null}
         {selectedBlock ? <ShadeHeight height={selectedBlock.height} onHeight={onHeight} /> : null}
       </div>
-      <p className="text-xs text-ink/60">
-        {!buildingsLoaded
-          ? "Loading nearby buildings…"
-          : buildingError
-            ? buildingError
-            : hasOsmBuildings
-              ? "Grey blocks are OpenStreetMap buildings. Heights are often a guess. Delete any that are wrong."
-              : "No building outlines were added for this point. You can draw shade blocks yourself."}
-      </p>
     </div>
   );
-}
-
-function shadeButtonClass(armed: boolean) {
-  return armed
-    ? "inline-flex min-h-8 items-center gap-1 rounded-full bg-leaf px-2 py-1 text-[11px] text-white"
-    : "inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-card px-2 py-1 text-[11px] text-ink hover:border-leaf";
 }
 
 function PresetSizeField({

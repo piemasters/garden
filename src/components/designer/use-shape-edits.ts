@@ -1,7 +1,7 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { distance, pointInBlock, pointInPolygon, polygonArea } from "#/domain/geometry";
 import { isCustomShade } from "./drawing";
-import type { Garden, GroundSurface, Plant, Point, SunLevel } from "#/domain/types";
+import type { Garden, GroundSurface, Plant, Point, SoilType, SunLevel } from "#/domain/types";
 import {
   duplicateBed,
   duplicateBlock,
@@ -13,6 +13,7 @@ import {
   setBedColour,
   setBedLight,
   setBedRaised,
+  setBedSoil,
   setBedSurface,
   setBlockHeight,
   setBlockSurface,
@@ -167,7 +168,7 @@ export function useShapeEdits({
     const width = wide ? 288 : 208;
     const height =
       hit.kind === "bed" && hit.fills
-        ? 540
+        ? 620
         : hit.kind === "block"
           ? materials
             ? 380
@@ -203,10 +204,12 @@ export function useShapeEdits({
     removeSelection,
     renameBed: (id: string, name: string) => renameBed(edits, id, name),
     setBedColour: (id: string, color: string) => setBedColour(edits, id, color),
-    setBedSurface: (id: string, surface: GroundSurface) => setBedSurface(edits, id, surface),
+    setBedSurface: (id: string, surface: GroundSurface | null) => setBedSurface(edits, id, surface),
     setBlockHeight: (id: string, height: number) => setBlockHeight(edits, id, height),
-    setBlockSurface: (id: string, surface: GroundSurface) => setBlockSurface(edits, id, surface),
+    setBlockSurface: (id: string, surface: GroundSurface | null) =>
+      setBlockSurface(edits, id, surface),
     setBedLight: (id: string, light: SunLevel | null) => setBedLight(edits, id, light),
+    setBedSoil: (id: string, soil: SoilType | null) => setBedSoil(edits, id, soil),
     setBedRaised: (id: string, raised: boolean) => setBedRaised(edits, id, raised),
     duplicateBed: (id: string) => duplicateBed(edits, id),
     removeBed: (id: string) => removeBed(edits, id),

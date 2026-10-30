@@ -97,6 +97,30 @@ describe("garden transfer", () => {
         }),
       ).ok,
     ).toBe(false);
+    const clay = readGardenFile(
+      JSON.stringify({
+        kind: "uk-garden-planner.garden",
+        version: 1,
+        garden: {
+          ...garden,
+          beds: [{ ...garden.beds[0], soilOverride: "clay" }],
+        },
+      }),
+    );
+    expect(clay.ok).toBe(true);
+    if (clay.ok) expect(clay.garden.beds[0]?.soilOverride).toBe("clay");
+    expect(
+      readGardenFile(
+        JSON.stringify({
+          kind: "uk-garden-planner.garden",
+          version: 1,
+          garden: {
+            ...garden,
+            beds: [{ ...garden.beds[0], soilOverride: "peat" }],
+          },
+        }),
+      ).ok,
+    ).toBe(false);
   });
 
   it("keeps a second copy when this browser already has that garden", () => {
