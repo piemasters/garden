@@ -34,8 +34,10 @@ import {
   snapAngle,
   snappedEdge,
   snapPoint,
+  lineEnds,
   snapLineToOutline,
   snapToOutline,
+  stretchedLine,
   spanSize,
   toLocalMetres,
 } from "./geometry";
@@ -338,5 +340,32 @@ describe("drawing sizes", () => {
     expect(next.width).toBeCloseTo(10);
     expect(next.depth).toBeCloseTo(0.3);
     expect(next.rotation).toBeCloseTo(0.4);
+  });
+
+  it("stretches a fence from one end and leaves the other end put", () => {
+    const block: ShadeBlock = {
+      id: "fence",
+      x: 2,
+      y: 0,
+      width: 4,
+      depth: 0.3,
+      height: 1.8,
+      rotation: 0,
+      line: true,
+      source: "user",
+    };
+    const [start, end] = lineEnds(block);
+    const longer = stretchedLine(block, start, { x: 8.1, y: 0.1 }, null, 1);
+    expect(longer.width).toBeCloseTo(8);
+    expect(longer.depth).toBe(0.3);
+    expect(longer.rotation).toBeCloseTo(0);
+    expect(lineEnds(longer)[0]).toEqual({ x: 0, y: 0 });
+    const aimed = stretchedLine(block, end, { x: 4, y: 4 }, null, 1);
+    expect(aimed.depth).toBe(0.3);
+    expect(aimed.width).toBeCloseTo(4);
+    expect(lineEnds(aimed)).toEqual([
+      { x: 4, y: 0 },
+      { x: 4, y: 4 },
+    ]);
   });
 });

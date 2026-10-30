@@ -30,6 +30,7 @@ export {
   snapAngle,
   snapLength,
   snapLineToOutline,
+  stretchedLine,
   snapOffset,
   snapPoint,
   snapScale,

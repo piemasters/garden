@@ -1,7 +1,9 @@
 import { SUN_LABEL } from "#/domain/labels";
 import { bedSurface } from "#/domain/surface";
 import { SUN_LEVELS, type GroundSurface, type SunLevel } from "#/domain/types";
-import { BedColours } from "./bed-colours";
+import { isCustomShade } from "../drawing";
+import { BedColours, SurfaceChoices } from "./bed-colours";
+import { ShadeHeight } from "./shade-height";
 import type { ShapeMenu as ShapeMenuState } from "../tools";
 
 export function ShapeMenu({
@@ -21,6 +23,7 @@ export function ShapeMenu({
   onDuplicateBlock,
   onDeleteBlock,
   onRemovePlant,
+  onHeight,
 }: {
   menu: ShapeMenuState;
   bed: {
@@ -30,7 +33,13 @@ export function ShapeMenu({
     lightOverride: SunLevel | null;
     raised?: boolean;
   } | null;
-  block: { label?: string; source: "osm" | "user" } | null;
+  block: {
+    label?: string;
+    source: "osm" | "user";
+    line?: boolean;
+    surface?: GroundSurface;
+    height: number;
+  } | null;
   plantName: string | null;
   plantCount: number;
   onRename: (name: string) => void;
@@ -44,6 +53,7 @@ export function ShapeMenu({
   onDuplicateBlock: () => void;
   onDeleteBlock: () => void;
   onRemovePlant: () => void;
+  onHeight: (height: number) => void;
 }) {
   const itemClass = "block w-full px-3 py-1.5 text-left hover:bg-paper";
   return (
@@ -120,6 +130,14 @@ export function ShapeMenu({
           <p className="px-3 py-1.5 text-xs text-ink/60">
             {block.label ?? (block.source === "osm" ? "Building" : "Shade block")}
           </p>
+          <div className="px-3 py-1.5">
+            <ShadeHeight height={block.height} onHeight={onHeight} />
+          </div>
+          {isCustomShade(block) ? (
+            <div className="px-3 py-1.5">
+              <SurfaceChoices surface={bedSurface(block.surface)} onSurface={onSurface} />
+            </div>
+          ) : null}
           <button className={itemClass} type="button" onClick={onDuplicateBlock}>
             Duplicate
           </button>

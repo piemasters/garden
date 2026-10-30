@@ -3,6 +3,8 @@ import {
   blockFromCorners,
   centroid,
   distance,
+  lineEnds,
+  stretchedLine,
   formatTurn,
   pointInBlock,
   pointInPolygon,
@@ -127,15 +129,24 @@ function attachBlock(
 
 export function adjustShape(
   session: DrawSession,
-  kind: "rotate" | "scale" | "move",
+  kind: "rotate" | "scale" | "move" | "stretch",
   raw: Point,
   phase: "down" | "move" | "up",
+  endIndex?: 0 | 1,
+  /** The canvas handles belong to the current selection, even when they overlap another shape. */
+  fromHandle = false,
 ) {
   if (session.view !== "plan") return;
   if (phase === "down") {
-    const block = blockUnder(session.garden, session.selectedBlockId, raw);
-    const bed = bedUnder(session.garden, session.selectedBedId, raw);
+    if (kind === "stretch") {
+      beginStretch(session, raw, endIndex);
+      return;
+    }
     const selectedBlock = session.garden.blocks.find((item) => item.id === session.selectedBlockId);
+    const block = fromHandle
+      ? selectedBlock
+      : blockUnder(session.garden, session.selectedBlockId, raw);
+    const bed = fromHandle ? undefined : bedUnder(session.garden, session.selectedBedId, raw);
     if (block) {
       const center = { x: block.x, y: block.y };
       if (kind === "scale" && distance(raw, center) < 0.4) {
@@ -224,11 +235,19 @@ export function adjustShape(
   }
   const gesture = session.adjustRef.current;
   if (!gesture) return;
-  const preview = reflowScaledFill(
-    session,
-    gesture,
-    attachBlock(session, gesture, previewAdjust(session.units, gesture, raw)),
-  );
+  if (gesture.kind === "stretch" && phase === "up" && !gesture.preview) {
+    session.adjustRef.current = null;
+    session.setAdjust(null);
+    return;
+  }
+  const preview =
+    gesture.kind === "stretch"
+      ? stretchPreview(session, gesture, raw)
+      : reflowScaledFill(
+          session,
+          gesture,
+          attachBlock(session, gesture, previewAdjust(session.units, gesture, raw)),
+        );
   if (phase === "move") {
     gesture.preview = preview;
     session.setAdjust(preview);
@@ -292,6 +311,70 @@ export function adjustShape(
       return moved ? { ...item, x: moved.x, y: moved.y } : item;
     }),
   }));
+}
+
+function beginStretch(session: DrawSession, raw: Point, endIndex?: 0 | 1) {
+  const selected = session.garden.blocks.find((item) => item.id === session.selectedBlockId);
+  const block = selected?.line
+    ? selected
+    : blockUnder(session.garden, session.selectedBlockId, raw);
+  if (!block?.line) {
+    session.setDrawNote("Select a hedge or fence, then drag an end.");
+    return;
+  }
+  const ends = lineEnds(block);
+  const index = endIndex ?? (distance(raw, ends[0]) <= distance(raw, ends[1]) ? 0 : 1);
+  const anchor = ends[index === 0 ? 1 : 0];
+  session.setDrawNote(null);
+  session.setSelectedBlockId(block.id);
+  session.adjustRef.current = {
+    kind: "stretch",
+    target: "block",
+    bedId: block.id,
+    center: { x: block.x, y: block.y },
+    origin: ends[index],
+    anchor,
+    startAngle: block.rotation ?? 0,
+    startDistance: Math.max(block.width, 0.5),
+    basePoints: blockCorners(block),
+    basePlacements: [],
+    baseBlock: block,
+    preview: null,
+  };
+}
+
+function stretchPreview(session: DrawSession, gesture: AdjustGesture, raw: Point): AdjustPreview {
+  const base = gesture.baseBlock;
+  const anchor = gesture.anchor;
+  if (!base || !anchor) {
+    return {
+      bedId: gesture.bedId,
+      points: gesture.basePoints,
+      placements: [],
+      label: "",
+      changed: false,
+      block: base,
+    };
+  }
+  const block = stretchedLine(
+    base,
+    anchor,
+    raw,
+    session.garden.boundary,
+    outlineSnapMetres(session.scale),
+  );
+  return {
+    bedId: gesture.bedId,
+    points: blockCorners(block),
+    placements: [],
+    label: `${session.units.length(block.width)} long`,
+    changed:
+      Math.abs(block.width - base.width) > 0.001 ||
+      Math.abs((block.rotation ?? 0) - (base.rotation ?? 0)) > 0.001 ||
+      Math.abs(block.x - base.x) > 0.001 ||
+      Math.abs(block.y - base.y) > 0.001,
+    block,
+  };
 }
 
 function reflowScaledFill(

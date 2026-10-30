@@ -158,6 +158,15 @@ export function presetIsLine(preset: (typeof SHADE_PRESETS)[number]): boolean {
   return "line" in preset && preset.line;
 }
 
+const NAMED_SHADE = ["House", "Garage", "Shed", "Tree", "Hedge", "Fence"] as const;
+
+/** A drawn rectangle, rather than a house, shed, tree, hedge, or fence. */
+export function isCustomShade(block: { label?: string; source: string; line?: boolean }): boolean {
+  if (block.source !== "user" || block.line) return false;
+  const shape = block.label?.replace(/ copy(?: \d+)?$/, "");
+  return !shape || !(NAMED_SHADE as readonly string[]).includes(shape);
+}
+
 export function madeShade(
   preset: (typeof SHADE_PRESETS)[number],
   center: Point,

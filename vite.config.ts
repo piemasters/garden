@@ -23,7 +23,17 @@ const config = defineConfig({
     noExternal: ["three", "@react-three/fiber", "@react-three/drei"],
   },
   plugins: lazyPlugins(() => [
-    devtools({ consolePiping: { enabled: false } }),
+    devtools({
+      consolePiping: { enabled: false },
+      injectSource: {
+        enabled: true,
+        ignore: {
+          // React Three Fiber reads dashed props as object paths. data-tsd-source
+          // is written onto the 3D object, and the next update throws.
+          files: [/\/components\/designer\/scene\//],
+        },
+      },
+    }),
     tailwindcss(),
     tanstackStart(),
     viteReact(),

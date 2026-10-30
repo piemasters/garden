@@ -1,5 +1,6 @@
-import type { ShadeBlock } from "#/domain/types";
+import type { Point, ShadeBlock } from "#/domain/types";
 import { useUnits } from "#/lib/units";
+import { bedSize } from "../drawing";
 import { SELECT_TOOL, type Tool } from "../tools";
 import { DuplicateIcon, RemoveIcon } from "./icons";
 import { ToolButton } from "./tool-button";
@@ -12,7 +13,8 @@ export function SelectionBar({
   onRemove,
   drawNote,
   selectedBlock,
-  onHeight,
+  selectedBed,
+  selectedPlant,
 }: {
   tool: Tool;
   onTool: (tool: Tool) => void;
@@ -21,9 +23,17 @@ export function SelectionBar({
   onRemove: () => void;
   drawNote: string | null;
   selectedBlock: ShadeBlock | null;
-  onHeight: (height: number) => void;
+  selectedBed: { name: string; points: Point[] } | null;
+  selectedPlant: { name: string; bedName: string | null } | null;
 }) {
   const units = useUnits();
+  const selection = selectedPlant
+    ? plantSelection(selectedPlant)
+    : selectedBlock
+      ? blockSelection(selectedBlock, units)
+      : selectedBed
+        ? `${selectedBed.name} · ${bedSize(selectedBed.points, units.unit)}`
+        : null;
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap gap-1">
@@ -91,26 +101,23 @@ export function SelectionBar({
           ) : null}
         </div>
       ) : null}
-      {selectedBlock ? (
-        <label className="block text-sm">
-          {selectedBlock.label ?? "Shade"} ·{" "}
-          {selectedBlock.line
-            ? `${units.length(selectedBlock.width)} long`
-            : units.size(selectedBlock.width, selectedBlock.depth)}
-          <span className="mt-2 block text-xs text-ink/60">
-            Height {units.length(selectedBlock.height)}
-          </span>
-          <input
-            className="mt-1 w-full"
-            type="range"
-            min={0.5}
-            max={20}
-            step={0.5}
-            value={selectedBlock.height}
-            onChange={(event) => onHeight(Number(event.target.value))}
-          />
-        </label>
+      {selection ? (
+        <p className="text-sm mt-2">
+          Selected: <span className="pl-1 text-leaf">{selection}</span>
+        </p>
       ) : null}
     </div>
   );
+}
+
+function blockSelection(block: ShadeBlock, units: ReturnType<typeof useUnits>): string {
+  const name = block.label ?? (block.source === "osm" ? "Building" : "Shade");
+  const size = block.line
+    ? `${units.length(block.width)} long`
+    : units.size(block.width, block.depth);
+  return `${name} · ${size}`;
+}
+
+function plantSelection(plant: { name: string; bedName: string | null }): string {
+  return plant.bedName ? `${plant.name} · ${plant.bedName}` : plant.name;
 }

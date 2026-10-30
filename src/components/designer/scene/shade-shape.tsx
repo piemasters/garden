@@ -1,7 +1,9 @@
 import { Line } from "@react-three/drei";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import type { ShadeBlock } from "#/domain/types";
+import { SURFACE_COLOR, bedSurface } from "#/domain/surface";
+import type { GroundSurface, ShadeBlock } from "#/domain/types";
+import { SURFACE_ROUGHNESS, surfaceTexture } from "./textures";
 
 type Size = { width: number; depth: number; height: number };
 
@@ -61,14 +63,27 @@ function ShadeModel({ block, size }: { block: ShadeBlock; size: Size }) {
       />
     );
   }
-  return <PlainBlock {...size} />;
+  return <PlainBlock {...size} surface={block.surface} />;
 }
 
-function PlainBlock({ width, depth, height }: Size) {
+function PlainBlock({ width, depth, height, surface }: Size & { surface?: GroundSurface }) {
+  const material = bedSurface(surface);
+  const map = useMemo(
+    () => (material ? surfaceTexture(material, Math.max(width, depth, 1)) : null),
+    [material, width, depth],
+  );
+  useEffect(() => () => map?.dispose(), [map]);
   return (
     <mesh position={[0, height / 2, 0]} raycast={() => null}>
       <boxGeometry args={[width, height, depth]} />
-      <meshStandardMaterial color="#6e7c86" transparent opacity={0.88} />
+      <meshStandardMaterial
+        key={material ?? "plain"}
+        color={material ? SURFACE_COLOR[material] : "#6e7c86"}
+        map={map}
+        roughness={material ? SURFACE_ROUGHNESS[material] : 0.85}
+        transparent={!material}
+        opacity={material ? 1 : 0.88}
+      />
     </mesh>
   );
 }

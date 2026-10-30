@@ -33,22 +33,31 @@ export function BedHandle({
   label,
   at,
   kind,
+  end,
   toPoint,
   adjust,
 }: {
   label: string;
   at: { x: number; y: number };
-  kind: "rotate" | "scale" | "move";
+  kind: "rotate" | "scale" | "move" | "stretch";
+  /** Which end of a hedge or fence this handle moves. */
+  end?: 0 | 1;
   toPoint: { current: (clientX: number, clientY: number) => Point | null };
-  adjust: (kind: "rotate" | "scale" | "move", point: Point, phase: "down" | "move" | "up") => void;
+  adjust: (
+    kind: "rotate" | "scale" | "move" | "stretch",
+    point: Point,
+    phase: "down" | "move" | "up",
+    end?: 0 | 1,
+    fromHandle?: boolean,
+  ) => void;
 }) {
   function atEvent(event: { clientX: number; clientY: number }, phase: "down" | "move" | "up") {
     const point = toPoint.current(event.clientX, event.clientY);
-    if (point) adjust(kind, point, phase);
+    if (point) adjust(kind, point, phase, end, true);
   }
   return (
     <button
-      className="group absolute z-20 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none items-center justify-center rounded-full border border-white bg-leaf text-white shadow pointer-fine:h-7 pointer-fine:w-7 active:cursor-grabbing"
+      className="pointer-events-auto group absolute z-20 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none items-center justify-center rounded-full border border-white bg-leaf text-white shadow pointer-fine:h-7 pointer-fine:w-7 active:cursor-grabbing"
       style={{ left: at.x, top: at.y }}
       type="button"
       aria-label={label}
@@ -83,7 +92,7 @@ export function BedHandle({
   );
 }
 
-export function HandleIcon({ kind }: { kind: "rotate" | "scale" | "move" }) {
+export function HandleIcon({ kind }: { kind: "rotate" | "scale" | "move" | "stretch" }) {
   const stroke = {
     viewBox: "0 0 16 16",
     className: "h-5 w-5 pointer-fine:h-3.5 pointer-fine:w-3.5",
@@ -107,6 +116,14 @@ export function HandleIcon({ kind }: { kind: "rotate" | "scale" | "move" }) {
       <svg {...stroke}>
         <path d="M12.75 6.25a4.75 4.75 0 1 0 .4 4.4" />
         <path d="M12.75 2.75v3.5h-3.5" />
+      </svg>
+    );
+  }
+  if (kind === "stretch") {
+    return (
+      <svg {...stroke}>
+        <path d="M2.25 8h11.5" />
+        <path d="m5 5.25-2.75 2.75L5 10.75M11 5.25l2.75 2.75L11 10.75" />
       </svg>
     );
   }

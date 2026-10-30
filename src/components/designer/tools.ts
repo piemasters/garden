@@ -84,7 +84,7 @@ export type AdjustPreview = {
 };
 
 export type AdjustGesture = {
-  kind: "rotate" | "scale" | "move";
+  kind: "rotate" | "scale" | "move" | "stretch";
   target: "bed" | "block";
   bedId: string;
   center: Point;
@@ -96,6 +96,8 @@ export type AdjustGesture = {
   /** Ids created while a fill grows, kept for the rest of the drag. */
   spareFillIds?: Record<string, string[]>;
   baseBlock: ShadeBlock | null;
+  /** The end of a hedge or fence that stays put while the other end stretches. */
+  anchor?: Point;
   preview: AdjustPreview | null;
 };
 

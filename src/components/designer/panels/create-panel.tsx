@@ -1,9 +1,11 @@
 import type { FormEvent } from "react";
 import { BUILTIN_BED_PRESETS, type BedPreset } from "#/lib/bed-presets";
+import type { ShadeBlock } from "#/domain/types";
 import { useUnits } from "#/lib/units";
 import { presetIsLine } from "../drawing";
 import { BED_TOOLS, CUSTOM_SHADE, SHADE_PRESETS, type ShadePreset, type Tool } from "../tools";
 import { ShadeAreaIcon } from "./icons";
+import { ShadeHeight } from "./shade-height";
 import { ToolButton } from "./tool-button";
 
 export function CreatePanel({
@@ -28,6 +30,8 @@ export function CreatePanel({
   buildingsLoaded,
   buildingError,
   hasOsmBuildings,
+  selectedBlock,
+  onHeight,
 }: {
   tool: Tool;
   onTool: (tool: Tool) => void;
@@ -50,6 +54,8 @@ export function CreatePanel({
   buildingsLoaded: boolean;
   buildingError: string | null;
   hasOsmBuildings: boolean;
+  selectedBlock: ShadeBlock | null;
+  onHeight: (height: number) => void;
 }) {
   const units = useUnits();
   return (
@@ -175,13 +181,14 @@ export function CreatePanel({
           <p className="text-xs leading-snug text-ink/70">
             {presetIsLine(shadePreset)
               ? hasOutline
-                ? `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Near the property outline it snaps to that line. Scaling changes its length, not its width.`
-                : `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Scaling changes its length, not its width.`
+                ? `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Drag either end to stretch it. Near the property outline it snaps to that line.`
+                : `Drag to draw the ${shadePreset.label.toLowerCase()} as long as you need. Drag either end to stretch it. Its width stays the same.`
               : `Click to place a ${shadePreset.label.toLowerCase()}, or drag to aim its long side.`}
           </p>
         ) : tool === "block" ? (
           <p className="text-xs leading-snug text-ink/70">{CUSTOM_SHADE.help}</p>
         ) : null}
+        {selectedBlock ? <ShadeHeight height={selectedBlock.height} onHeight={onHeight} /> : null}
       </div>
       <p className="text-xs text-ink/60">
         {!buildingsLoaded

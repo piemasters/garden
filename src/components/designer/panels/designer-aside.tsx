@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { buildTimeline } from "#/domain/jobs";
-import { PLANTS } from "#/domain/plants";
+import { getPlant, PLANTS } from "#/domain/plants";
 import { Tabs } from "#/components/generic/tabs";
 import { plantMatchesListFilter, type PlantListFilter } from "#/components/plants/plant-filters";
 import { recommendPlants } from "#/domain/recommend";
@@ -29,7 +29,9 @@ export function DesignerAside({
   activeBed,
   selectedBedId,
   selectedBlockId,
+  selectedPlacementId,
   onSelectBed,
+  onSelectBlock,
   drawing,
   edits,
   onArmPlant,
@@ -45,7 +47,9 @@ export function DesignerAside({
   activeBed: Garden["beds"][number] | null;
   selectedBedId: string | null;
   selectedBlockId: string | null;
+  selectedPlacementId: string | null;
   onSelectBed: (id: string) => void;
+  onSelectBlock: (id: string) => void;
   drawing: Drawing;
   edits: ShapeEdits;
   onArmPlant: (plantId: string) => void;
@@ -71,8 +75,16 @@ export function DesignerAside({
       )
     : [];
   const selectedBlock = garden.blocks.find((block) => block.id === selectedBlockId) ?? null;
-  const bedIsSelected =
-    selectedBlockId === null && garden.beds.some((bed) => bed.id === selectedBedId);
+  const selectedBed = garden.beds.find((bed) => bed.id === selectedBedId) ?? null;
+  const bedIsSelected = selectedBlockId === null && selectedBed !== null;
+  const placement = garden.placements.find((item) => item.id === selectedPlacementId) ?? null;
+  const plant = placement ? getPlant(placement.plantId) : undefined;
+  const selectedPlant = plant
+    ? {
+        name: plant.commonName,
+        bedName: garden.beds.find((bed) => bed.id === placement?.bedId)?.name ?? null,
+      }
+    : null;
   const jobCount = buildTimeline(PLANTS, garden.placements, garden.site).length;
 
   return (
@@ -103,15 +115,8 @@ export function DesignerAside({
           onRemove={edits.removeSelection}
           drawNote={drawing.drawNote}
           selectedBlock={selectedBlock}
-          onHeight={(height) => {
-            if (!selectedBlock) return;
-            update((current) => ({
-              ...current,
-              blocks: current.blocks.map((block) =>
-                block.id === selectedBlock.id ? { ...block, height } : block,
-              ),
-            }));
-          }}
+          selectedBed={bedIsSelected ? selectedBed : null}
+          selectedPlant={selectedBlock ? null : selectedPlant}
         />
         {drawing.drawingLabel ? (
           <p className="text-sm font-medium">{drawing.drawingLabel}</p>
@@ -151,6 +156,11 @@ export function DesignerAside({
           buildingsLoaded={garden.buildingsLoaded}
           buildingError={garden.buildingError}
           hasOsmBuildings={garden.blocks.some((block) => block.source === "osm")}
+          selectedBlock={selectedBlock}
+          onHeight={(height) => {
+            if (!selectedBlock) return;
+            edits.setBlockHeight(selectedBlock.id, height);
+          }}
         />
       ) : null}
       {panel === "beds" ? (
@@ -162,12 +172,18 @@ export function DesignerAside({
           showNames={garden.showBedNames ?? false}
           onShowNames={(showBedNames) => update((current) => ({ ...current, showBedNames }))}
           menu={edits.menu}
+          selectedBedId={selectedBedId}
           onSelectBed={onSelectBed}
+          selectedBlockId={selectedBlockId}
+          onSelectBlock={onSelectBlock}
           onOpenSettings={(id, clientX, clientY) =>
             edits.openMenu(
               { clientX, clientY, preventDefault() {} },
               { kind: "bed", id, fills: true },
             )
+          }
+          onOpenBlockSettings={(id, clientX, clientY) =>
+            edits.openMenu({ clientX, clientY, preventDefault() {} }, { kind: "block", id })
           }
           onCloseMenu={() => edits.setMenu(null)}
           jobCount={jobCount}

@@ -4,6 +4,7 @@ import { PLANTS } from "#/domain/plants";
 import type { Garden, Point } from "#/domain/types";
 import { useGarden } from "#/lib/use-garden";
 import { DesignerAside } from "./panels/designer-aside";
+import type { HandleSpots } from "./scene/types";
 import { PlanStage } from "./plan-stage";
 import { useLoadedBuildings } from "./use-buildings";
 import { useDaylight } from "./use-daylight";
@@ -45,11 +46,7 @@ function DesignerBody({
   const [bedLabels, setBedLabels] = useState<{ id: string; name: string; x: number; y: number }[]>(
     [],
   );
-  const [handleSpots, setHandleSpots] = useState<{
-    turn: { x: number; y: number };
-    resize: { x: number; y: number };
-    center: { x: number; y: number };
-  } | null>(null);
+  const [handleSpots, setHandleSpots] = useState<HandleSpots | null>(null);
   const pointerRef = useRef<(clientX: number, clientY: number) => Point | null>(() => null);
 
   useLoadedBuildings(garden, update);
@@ -103,9 +100,15 @@ function DesignerBody({
         activeBed={activeBed}
         selectedBedId={selectedBedId}
         selectedBlockId={selectedBlockId}
+        selectedPlacementId={selectedPlacementId}
         onSelectBed={(id) => {
           setSelectedBedId(id);
           setSelectedBlockId(null);
+        }}
+        onSelectBlock={(id) => {
+          setSelectedBlockId(id);
+          setSelectedBedId(null);
+          setSelectedPlacementId(null);
         }}
         drawing={drawing}
         edits={edits}

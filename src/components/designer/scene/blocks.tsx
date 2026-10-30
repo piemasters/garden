@@ -91,15 +91,15 @@ export function BlockMesh({
 }
 
 /**
- * How a block meets a slope. Houses and garages keep a level floor on a foundation.
- * Trees stand upright on the ground at the trunk. Fences, hedges, and sheds follow the fall.
+ * How a block meets a slope. Houses, garages, sheds, and custom areas keep a
+ * level floor on a foundation. Trees stand upright at the trunk. Fences and
+ * hedges follow the fall.
  */
 function slopeSeat(block: ShadeBlock): "foundation" | "upright" | "follow" {
-  if (block.source === "osm") return "foundation";
   const shape = block.label?.replace(/ copy(?: \d+)?$/, "");
-  if (shape === "House" || shape === "Garage") return "foundation";
   if (shape === "Tree") return "upright";
-  return "follow";
+  if (block.line || shape === "Hedge" || shape === "Fence") return "follow";
+  return "foundation";
 }
 
 /** Floor at the uphill ground, and how far the base must reach the downhill ground. */

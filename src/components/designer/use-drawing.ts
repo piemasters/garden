@@ -264,11 +264,13 @@ export function useDrawing({
   }
 
   function adjustShape(
-    kind: "rotate" | "scale" | "move",
+    kind: "rotate" | "scale" | "move" | "stretch",
     raw: Point,
     phase: "down" | "move" | "up",
+    endIndex?: 0 | 1,
+    fromHandle?: boolean,
   ) {
-    runAdjust(session, kind, raw, phase);
+    runAdjust(session, kind, raw, phase, endIndex, fromHandle);
   }
 
   const drawing = drawingPreview(

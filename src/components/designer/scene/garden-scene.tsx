@@ -168,10 +168,11 @@ export function GardenScene(props: SceneProps) {
         points={
           props.showHandles
             ? (props.handlePoints ??
-              props.beds.find((bed) => bed.id === props.selectedBedId)?.points ??
+              props.beds.find((bed) => bed.id === props.chosenBedId)?.points ??
               null)
             : null
         }
+        ends={props.showHandles ? props.handleEnds : null}
         onSpots={props.onHandleSpots}
         pointerRef={props.pointerRef}
       />

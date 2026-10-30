@@ -1,5 +1,6 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { distance, pointInBlock, pointInPolygon, polygonArea } from "#/domain/geometry";
+import { isCustomShade } from "./drawing";
 import type { Garden, GroundSurface, Plant, Point, SunLevel } from "#/domain/types";
 import {
   duplicateBed,
@@ -13,6 +14,8 @@ import {
   setBedLight,
   setBedRaised,
   setBedSurface,
+  setBlockHeight,
+  setBlockSurface,
 } from "./shape-actions";
 import type { ShapeMenu as ShapeMenuState, Tool } from "./tools";
 
@@ -157,12 +160,25 @@ export function useShapeEdits({
     hit: { kind: ShapeMenuState["kind"]; id: string; fills?: boolean },
   ) {
     event.preventDefault();
-    const width = hit.fills ? 288 : 208;
-    const height = hit.fills ? 540 : hit.kind === "bed" ? 180 : 112;
+    const block =
+      hit.kind === "block" ? garden.blocks.find((item) => item.id === hit.id) : undefined;
+    const materials = Boolean(block && isCustomShade(block));
+    const wide = Boolean(hit.fills) || materials;
+    const width = wide ? 288 : 208;
+    const height =
+      hit.kind === "bed" && hit.fills
+        ? 540
+        : hit.kind === "block"
+          ? materials
+            ? 380
+            : 200
+          : hit.kind === "bed"
+            ? 180
+            : 112;
     setMenu({
       kind: hit.kind,
       id: hit.id,
-      fills: hit.fills,
+      fills: wide,
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - width - 8)),
       y: Math.max(8, Math.min(event.clientY, window.innerHeight - height - 8)),
     });
@@ -188,6 +204,8 @@ export function useShapeEdits({
     renameBed: (id: string, name: string) => renameBed(edits, id, name),
     setBedColour: (id: string, color: string) => setBedColour(edits, id, color),
     setBedSurface: (id: string, surface: GroundSurface) => setBedSurface(edits, id, surface),
+    setBlockHeight: (id: string, height: number) => setBlockHeight(edits, id, height),
+    setBlockSurface: (id: string, surface: GroundSurface) => setBlockSurface(edits, id, surface),
     setBedLight: (id: string, light: SunLevel | null) => setBedLight(edits, id, light),
     setBedRaised: (id: string, raised: boolean) => setBedRaised(edits, id, raised),
     duplicateBed: (id: string) => duplicateBed(edits, id),

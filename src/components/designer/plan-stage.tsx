@@ -1,14 +1,24 @@
-import type { Dispatch, SetStateAction } from "react";
-import { blockCorners, centroid, pointInPolygon } from "#/domain/geometry";
+import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
+import { blockCorners, centroid, lineEnds, pointInPolygon } from "#/domain/geometry";
 import { getPlant } from "#/domain/plants";
 import { bedSun, type SunSample } from "#/domain/sun";
 import { groundSurface } from "#/domain/surface";
 import type { Garden, Plant, Point } from "#/domain/types";
+import type { HandleSpots } from "./scene/types";
 import { GardenCanvas } from "./garden-canvas";
 import { PlanChrome } from "./panels/plan-chrome";
 import { ShapeMenu } from "./panels/shape-menu";
 import type { Drawing } from "./use-drawing";
 import type { ShapeEdits } from "./use-shape-edits";
+
+/** A finger dragged across the plan can select the canvas and paint it blue. */
+function clearTouchSelection(event: { pointerType: string; currentTarget: HTMLElement }) {
+  if (event.pointerType === "mouse") return;
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed) return;
+  const node = selection.anchorNode;
+  if (node && event.currentTarget.contains(node)) selection.removeAllRanges();
+}
 
 export function PlanStage({
   garden,
@@ -49,18 +59,8 @@ export function PlanStage({
   onScale: (metres: number, pixels: number) => void;
   bedLabels: { id: string; name: string; x: number; y: number }[];
   onBedLabels: Dispatch<SetStateAction<{ id: string; name: string; x: number; y: number }[]>>;
-  handleSpots: {
-    turn: { x: number; y: number };
-    resize: { x: number; y: number };
-    center: { x: number; y: number };
-  } | null;
-  onHandleSpots: Dispatch<
-    SetStateAction<{
-      turn: { x: number; y: number };
-      resize: { x: number; y: number };
-      center: { x: number; y: number };
-    } | null>
-  >;
+  handleSpots: HandleSpots | null;
+  onHandleSpots: Dispatch<SetStateAction<HandleSpots | null>>;
   pointerRef: { current: (clientX: number, clientY: number) => Point | null };
   panelExpanded: boolean;
   armedPlantId: string | null;
@@ -79,11 +79,21 @@ export function PlanStage({
   const bedIsSelected =
     selectedBlockId === null && garden.beds.some((bed) => bed.id === selectedBedId);
   const menu = edits.menu;
+  const planRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const plan = planRef.current;
+    if (!plan) return;
+    const blockSelection = (event: Event) => event.preventDefault();
+    plan.addEventListener("selectstart", blockSelection);
+    return () => plan.removeEventListener("selectstart", blockSelection);
+  }, []);
 
   return (
     <>
       <div
-        className={`relative order-1 shrink-0 overflow-hidden lg:order-2 lg:h-auto lg:min-h-0 lg:flex-1 max-lg:landscape:h-auto max-lg:landscape:min-h-0 max-lg:landscape:shrink max-lg:landscape:flex-1 ${panelExpanded ? "h-0 max-lg:portrait:hidden lg:h-auto" : "h-[45vh]"}`}
+        ref={planRef}
+        className={`relative touch-none select-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] [&_canvas]:select-none [&_canvas]:[-webkit-tap-highlight-color:transparent] [&_canvas]:[-webkit-touch-callout:none] order-1 shrink-0 overflow-hidden lg:order-2 lg:h-auto lg:min-h-0 lg:flex-1 max-lg:landscape:h-auto max-lg:landscape:min-h-0 max-lg:landscape:shrink max-lg:landscape:flex-1 ${panelExpanded ? "h-0 max-lg:portrait:hidden lg:h-auto" : "h-[45vh]"}`}
+        onPointerMove={clearTouchSelection}
         onContextMenu={(event) => {
           const hit = edits.shapeAt(event);
           if (!hit) {
@@ -94,17 +104,6 @@ export function PlanStage({
           edits.openMenu(event, hit);
         }}
       >
-        <PlanChrome
-          view={view}
-          armedName={armed?.commonName ?? null}
-          drawingLabel={drawing.drawingLabel}
-          bedLabels={bedLabels}
-          activeBedId={activeBed?.id ?? null}
-          handleSpots={handleSpots}
-          pointerRef={pointerRef}
-          adjust={drawing.adjustShape}
-          scale={scale}
-        />
         <GardenCanvas
           beds={drawing.shownBeds}
           blocks={drawing.shownBlocks}
@@ -153,6 +152,7 @@ export function PlanStage({
           }
           onHandleSpots={onHandleSpots}
           handlePoints={drawing.editingBlock ? blockCorners(drawing.editingBlock) : undefined}
+          handleEnds={drawing.editingBlock?.line ? lineEnds(drawing.editingBlock) : null}
           pointerRef={pointerRef}
           bedNames={
             garden.showBedNames && view === "plan"
@@ -198,6 +198,17 @@ export function PlanStage({
             setSelectedPlacementId(null);
           }}
         />
+        <PlanChrome
+          view={view}
+          armedName={armed?.commonName ?? null}
+          drawingLabel={drawing.drawingLabel}
+          bedLabels={bedLabels}
+          activeBedId={activeBed?.id ?? null}
+          handleSpots={handleSpots}
+          pointerRef={pointerRef}
+          adjust={drawing.adjustShape}
+          scale={scale}
+        />
       </div>
       {menu ? (
         <ShapeMenu
@@ -221,7 +232,11 @@ export function PlanStage({
           })()}
           onRename={(name) => edits.renameBed(menu.id, name)}
           onColour={(color) => edits.setBedColour(menu.id, color)}
-          onSurface={(surface) => edits.setBedSurface(menu.id, surface)}
+          onSurface={(surface) =>
+            menu.kind === "block"
+              ? edits.setBlockSurface(menu.id, surface)
+              : edits.setBedSurface(menu.id, surface)
+          }
           onLight={(lightOverride) => edits.setBedLight(menu.id, lightOverride)}
           onRaised={(raised) => edits.setBedRaised(menu.id, raised)}
           onDuplicateBed={() => edits.duplicateBed(menu.id)}
@@ -229,6 +244,7 @@ export function PlanStage({
           onDuplicateBlock={() => edits.duplicateBlock(menu.id)}
           onDeleteBlock={() => edits.removeBlock(menu.id)}
           onRemovePlant={() => edits.removePlant(menu.id)}
+          onHeight={(height) => edits.setBlockHeight(menu.id, height)}
         />
       ) : null}
     </>

@@ -56,6 +56,37 @@ export function snapLineToOutline(
   };
 }
 
+/**
+ * Lengthen or aim a fence or hedge by moving one end. The anchor end stays
+ * put, and the thickness does not change.
+ */
+export function stretchedLine(
+  block: ShadeBlock,
+  anchor: Point,
+  raw: Point,
+  outline: Point[] | null | undefined,
+  threshold: number,
+): ShadeBlock {
+  const angle = block.rotation ?? 0;
+  const end =
+    distance(anchor, raw) < 0.35
+      ? { x: anchor.x + Math.cos(angle) * 0.5, y: anchor.y + Math.sin(angle) * 0.5 }
+      : snapToOutline(raw, outline, threshold);
+  const length = Math.max(distance(anchor, end), 0.5);
+  const rotation = Math.atan2(end.y - anchor.y, end.x - anchor.x);
+  return snapLineToOutline(
+    {
+      ...block,
+      x: anchor.x + (Math.cos(rotation) * length) / 2,
+      y: anchor.y + (Math.sin(rotation) * length) / 2,
+      width: length,
+      rotation,
+    },
+    outline,
+    threshold,
+  );
+}
+
 export function spanSize(points: Point[]): { width: number; depth: number } {
   let minX = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;

@@ -31,6 +31,26 @@ export function setBedSurface(session: EditSession, id: string, surface: GroundS
   }));
 }
 
+export function setBlockHeight(session: EditSession, id: string, height: number) {
+  if (!Number.isFinite(height)) return;
+  session.update((current) => ({
+    ...current,
+    blocks: current.blocks.map((block) => (block.id === id ? { ...block, height } : block)),
+  }));
+}
+
+/** Choosing the current material again returns the block to its plain finish. */
+export function setBlockSurface(session: EditSession, id: string, surface: GroundSurface) {
+  session.update((current) => ({
+    ...current,
+    blocks: current.blocks.map((block) =>
+      block.id === id
+        ? { ...block, surface: block.surface === surface ? undefined : surface }
+        : block,
+    ),
+  }));
+}
+
 export function setBedLight(session: EditSession, id: string, lightOverride: SunLevel | null) {
   session.update((current) => ({
     ...current,

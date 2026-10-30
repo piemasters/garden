@@ -128,6 +128,7 @@ function isBlock(value: unknown): boolean {
     (value.source === "osm" || value.source === "user") &&
     (value.rotation === undefined || isFiniteNumber(value.rotation)) &&
     (value.line === undefined || typeof value.line === "boolean") &&
+    (value.surface === undefined || oneOf(value.surface, GROUND_SURFACES)) &&
     (value.label === undefined || typeof value.label === "string")
   );
 }

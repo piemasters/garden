@@ -59,10 +59,12 @@ export function LineDraft({
 
 export function HandleTracker({
   points,
+  ends,
   onSpots,
   pointerRef,
 }: {
   points: Point[] | null;
+  ends: SceneProps["handleEnds"];
   onSpots: SceneProps["onHandleSpots"];
   pointerRef: SceneProps["pointerRef"];
 }) {
@@ -101,6 +103,14 @@ export function HandleTracker({
     // corners makes them jump and overlap while the shape turns or grows.
     const gap = 72;
     const margin = 36;
+    const [firstEnd, secondEnd] = ends ?? [];
+    const endSpots =
+      firstEnd && secondEnd
+        ? ([project(firstEnd), project(secondEnd)] as [
+            { x: number; y: number },
+            { x: number; y: number },
+          ])
+        : undefined;
     const next = {
       center,
       turn: {
@@ -111,8 +121,12 @@ export function HandleTracker({
         x: center.x + gap <= size.width - margin ? center.x + gap : center.x - gap,
         y: center.y,
       },
+      ...(endSpots ? { ends: endSpots } : {}),
     };
-    const key = `${Math.round(next.turn.x)},${Math.round(next.turn.y)},${Math.round(next.resize.x)},${Math.round(next.resize.y)}`;
+    const endKey = endSpots
+      ? endSpots.map((spot) => `${Math.round(spot.x)},${Math.round(spot.y)}`).join(":")
+      : "";
+    const key = `${Math.round(next.turn.x)},${Math.round(next.turn.y)},${Math.round(next.resize.x)},${Math.round(next.resize.y)},${endKey}`;
     if (key === last.current) return;
     last.current = key;
     onSpots(next);

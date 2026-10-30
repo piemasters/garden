@@ -92,6 +92,8 @@ export interface ShadeBlock {
   rotation?: number;
   /** A fence or hedge: length can change, width stays put. */
   line?: boolean;
+  /** Material fill for a custom shade area. Missing means the plain block. */
+  surface?: GroundSurface;
   source: "osm" | "user";
   label?: string;
 }

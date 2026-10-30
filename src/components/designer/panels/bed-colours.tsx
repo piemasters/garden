@@ -21,6 +21,44 @@ export function bedSwatch(bed: { color?: string; surface?: GroundSurface }): str
   return surface ? SURFACE_COLOR[surface] : bedColour(bed.color);
 }
 
+export function SurfaceChoices({
+  surface,
+  onSurface,
+}: {
+  surface: GroundSurface | null;
+  onSurface: (surface: GroundSurface) => void;
+}) {
+  return (
+    <div>
+      <p className="text-xs text-ink/60">Material</p>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {GROUND_SURFACES.map((id) => {
+          const selected = surface === id;
+          return (
+            <button
+              key={id}
+              className={
+                selected
+                  ? "inline-flex min-h-8 items-center gap-1.5 rounded-full bg-leaf px-2.5 py-1 text-xs text-white"
+                  : "inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1 text-xs text-ink hover:border-leaf"
+              }
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onSurface(id)}
+            >
+              <span
+                className="h-3 w-3 rounded-full border border-white/70"
+                style={{ background: SURFACE_COLOR[id] }}
+              />
+              {SURFACE_LABEL[id]}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function BedColours({
   color,
   surface,
@@ -58,33 +96,7 @@ export function BedColours({
           />
         </div>
       </div>
-      <div>
-        <p className="text-xs text-ink/60">Material</p>
-        <div className="mt-1 flex flex-wrap gap-1">
-          {GROUND_SURFACES.map((id) => {
-            const selected = surface === id;
-            return (
-              <button
-                key={id}
-                className={
-                  selected
-                    ? "inline-flex min-h-8 items-center gap-1.5 rounded-full bg-leaf px-2.5 py-1 text-xs text-white"
-                    : "inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-card px-2.5 py-1 text-xs text-ink hover:border-leaf"
-                }
-                type="button"
-                aria-pressed={selected}
-                onClick={() => onSurface(id)}
-              >
-                <span
-                  className="h-3 w-3 rounded-full border border-white/70"
-                  style={{ background: SURFACE_COLOR[id] }}
-                />
-                {SURFACE_LABEL[id]}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <SurfaceChoices surface={surface} onSurface={onSurface} />
     </div>
   );
 }

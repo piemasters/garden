@@ -1,5 +1,6 @@
 import type { Point } from "#/domain/types";
 import { useUnits } from "#/lib/units";
+import type { HandleSpots } from "../scene/types";
 import { BedHandle, HandleStem } from "./handles";
 
 export function PlanChrome({
@@ -18,18 +19,20 @@ export function PlanChrome({
   drawingLabel: string | null;
   bedLabels: { id: string; name: string; x: number; y: number }[];
   activeBedId: string | null;
-  handleSpots: {
-    turn: { x: number; y: number };
-    resize: { x: number; y: number };
-    center: { x: number; y: number };
-  } | null;
+  handleSpots: HandleSpots | null;
   pointerRef: { current: (clientX: number, clientY: number) => Point | null };
-  adjust: (kind: "rotate" | "scale" | "move", point: Point, phase: "down" | "move" | "up") => void;
+  adjust: (
+    kind: "rotate" | "scale" | "move" | "stretch",
+    point: Point,
+    phase: "down" | "move" | "up",
+    end?: 0 | 1,
+    fromHandle?: boolean,
+  ) => void;
   scale: { metres: number; pixels: number } | null;
 }) {
   const units = useUnits();
   return (
-    <>
+    <div className="pointer-events-none absolute inset-0 z-20">
       {view === "plan" ? (
         <p className="pointer-events-none absolute top-3 left-1/2 z-10 -translate-x-1/2 text-xs tracking-widest text-ink/70">
           NORTH
@@ -63,7 +66,9 @@ export function PlanChrome({
         <>
           <svg className="pointer-events-none absolute inset-0 z-10 h-full w-full">
             <HandleStem from={handleSpots.center} to={handleSpots.turn} />
-            <HandleStem from={handleSpots.center} to={handleSpots.resize} />
+            {handleSpots.ends ? null : (
+              <HandleStem from={handleSpots.center} to={handleSpots.resize} />
+            )}
           </svg>
           <BedHandle
             label="Move"
@@ -79,13 +84,34 @@ export function PlanChrome({
             toPoint={pointerRef}
             adjust={adjust}
           />
-          <BedHandle
-            label="Size"
-            at={handleSpots.resize}
-            kind="scale"
-            toPoint={pointerRef}
-            adjust={adjust}
-          />
+          {handleSpots.ends ? (
+            <>
+              <BedHandle
+                label="Stretch this end"
+                at={handleSpots.ends[0]}
+                kind="stretch"
+                end={0}
+                toPoint={pointerRef}
+                adjust={adjust}
+              />
+              <BedHandle
+                label="Stretch the other end"
+                at={handleSpots.ends[1]}
+                kind="stretch"
+                end={1}
+                toPoint={pointerRef}
+                adjust={adjust}
+              />
+            </>
+          ) : (
+            <BedHandle
+              label="Size"
+              at={handleSpots.resize}
+              kind="scale"
+              toPoint={pointerRef}
+              adjust={adjust}
+            />
+          )}
         </>
       ) : null}
       {view === "plan" && scale ? (
@@ -100,6 +126,6 @@ export function PlanChrome({
           </p>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
