@@ -1,11 +1,12 @@
 import type { MonthLook, Plant } from "../types";
+import { BULBS } from "./bulbs";
 import { FLOWERS } from "./flowers";
 import { FRUIT } from "./fruit";
 import { VEGETABLES } from "./vegetables";
 
-export { FLOWERS, FRUIT, VEGETABLES };
+export { BULBS, FLOWERS, FRUIT, VEGETABLES };
 
-export const PLANTS: Plant[] = [...FLOWERS, ...VEGETABLES, ...FRUIT];
+export const PLANTS: Plant[] = [...FLOWERS, ...BULBS, ...VEGETABLES, ...FRUIT];
 
 export function getPlant(id: string): Plant | undefined {
   return PLANTS.find((entry) => entry.id === id);

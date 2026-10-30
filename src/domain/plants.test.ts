@@ -10,9 +10,9 @@ import {
 
 describe("plant catalog", () => {
   it("has a full record for each plant, bulb and seed", () => {
-    expect(PLANTS).toHaveLength(56);
+    expect(PLANTS).toHaveLength(893);
     const ids = new Set(PLANTS.map((plant) => plant.id));
-    expect(ids.size).toBe(56);
+    expect(ids.size).toBe(893);
     for (const plant of PLANTS) {
       expect(plant.months).toHaveLength(12);
       expect(plant.jobs.length).toBeGreaterThan(0);
@@ -23,12 +23,17 @@ describe("plant catalog", () => {
         if (month.flower) expect(month.flowerHex).toMatch(/^#[0-9a-f]{6}$/i);
       }
     }
-    expect(PLANTS.filter((plant) => plant.kind === "bulb")).toHaveLength(12);
+    expect(PLANTS.filter((plant) => plant.kind === "bulb")).toHaveLength(849);
     expect(PLANTS.filter((plant) => plant.kind === "seed")).toHaveLength(24);
-    expect(PLANTS.filter((plant) => plant.group === "flower")).toHaveLength(29);
+    expect(PLANTS.filter((plant) => plant.group === "flower")).toHaveLength(866);
     expect(PLANTS.filter((plant) => plant.group === "vegetable")).toHaveLength(18);
     expect(PLANTS.filter((plant) => plant.group === "fruit")).toHaveLength(9);
     expect(PLANTS.some((plant) => plant.id === "tulipa-olympic-flame")).toBe(true);
+    const apeldoorn = getPlant("tulipa-apeldoorn");
+    expect(apeldoorn?.kind).toBe("bulb");
+    expect(apeldoorn && flowersInMonth(apeldoorn, 2)).toBe(true);
+    expect(apeldoorn && hasFlowerColour(apeldoorn, "red")).toBe(true);
+    expect(getPlant("tulipa-queen-of-night")?.summary.startsWith("A single late tulip")).toBe(true);
   });
 
   it("matches a flower colour from the month notes", () => {
