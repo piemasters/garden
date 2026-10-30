@@ -11,6 +11,7 @@ interface LookRange {
   flower?: string;
   flowerHex?: string;
   scent?: boolean;
+  harvest?: boolean;
 }
 
 export function year(ranges: LookRange[], evergreen = false): MonthLook[] {
@@ -25,6 +26,7 @@ export function year(ranges: LookRange[], evergreen = false): MonthLook[] {
         scent: range.scent ?? false,
         flower: range.flower,
         flowerHex: range.flowerHex,
+        harvest: range.harvest ?? false,
       };
     }
   }

@@ -92,6 +92,7 @@ export function PlantsPanel({
         <PlantFilterFields
           value={plantFilter}
           onChange={onPlantFilter}
+          group={plantGroup}
           className="mt-2 sm:grid-cols-1 lg:grid-cols-1"
         />
         <label className="flex justify-end pt-4 pb-1 items-center gap-2 text-xs">

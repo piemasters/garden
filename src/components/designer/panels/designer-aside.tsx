@@ -61,6 +61,7 @@ export function DesignerAside({
     sun: "all",
     hardiness: "all",
     flowerColour: "all",
+    flowering: "all",
   });
   const [panel, setPanel] = useState<"create" | "beds" | "plants">("create");
   const activeLight = activeBed ? resolvedLight(activeBed, samples, garden.blocks) : null;

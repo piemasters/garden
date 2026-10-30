@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { getPlant, hasFlowerColour, PLANTS } from "./plants";
+import { flowersInMonth, getPlant, harvestsInMonth, hasFlowerColour, PLANTS } from "./plants";
 
 describe("plant catalog", () => {
   it("has a full record for each plant, bulb and seed", () => {
@@ -36,5 +36,34 @@ describe("plant catalog", () => {
     expect(bluebell && hasFlowerColour(bluebell, "blue")).toBe(true);
     expect(bluebell && hasFlowerColour(bluebell, "purple")).toBe(true);
     expect(queen && hasFlowerColour(queen, "red")).toBe(true);
+  });
+
+  it("finds plants in flower in a month, and skips harvest notes", () => {
+    const tulip = getPlant("tulipa-olympic-flame");
+    const snowdrop = getPlant("galanthus-nivalis");
+    const tomato = getPlant("solanum-lycopersicum");
+    const courgette = getPlant("cucurbita-pepo");
+    expect(tulip && flowersInMonth(tulip, 4)).toBe(true);
+    expect(tulip && flowersInMonth(tulip, 0)).toBe(false);
+    expect(snowdrop && flowersInMonth(snowdrop, 0)).toBe(true);
+    expect(courgette && flowersInMonth(courgette, 5)).toBe(true);
+    expect(tomato && flowersInMonth(tomato, 6)).toBe(false);
+  });
+
+  it("finds crops ready to harvest, and keeps blossom months separate", () => {
+    const tomato = getPlant("solanum-lycopersicum");
+    const leek = getPlant("allium-porrum");
+    const onion = getPlant("allium-cepa");
+    const apple = getPlant("malus-domestica-bramley");
+    const strawberry = getPlant("fragaria-ananassa");
+    expect(tomato && harvestsInMonth(tomato, 6)).toBe(true);
+    expect(tomato && harvestsInMonth(tomato, 5)).toBe(false);
+    expect(leek && harvestsInMonth(leek, 0)).toBe(true);
+    expect(leek && harvestsInMonth(leek, 5)).toBe(false);
+    expect(onion && harvestsInMonth(onion, 7)).toBe(true);
+    expect(apple && harvestsInMonth(apple, 9)).toBe(true);
+    expect(apple && harvestsInMonth(apple, 4)).toBe(false);
+    expect(strawberry && harvestsInMonth(strawberry, 5)).toBe(true);
+    expect(strawberry && harvestsInMonth(strawberry, 4)).toBe(false);
   });
 });

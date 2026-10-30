@@ -52,6 +52,21 @@ export function hasFlowerColour(plant: Plant, colour: FlowerColour): boolean {
   });
 }
 
+/** Crop colour shares the flower note. A month is in flower when that note is a blossom. */
+const HARVEST_NOTE = /\b(fruit|root|stalks)\b/i;
+
+export function flowersInMonth(plant: Plant, month: number): boolean {
+  const note = plant.months[month]?.flower;
+  return note != null && !HARVEST_NOTE.test(note);
+}
+
+export function harvestsInMonth(plant: Plant, month: number): boolean {
+  const look = plant.months[month];
+  if (!look) return false;
+  if (look.harvest) return true;
+  return look.flower != null && HARVEST_NOTE.test(look.flower);
+}
+
 export const SEASONS = [
   { id: "spring", label: "Spring", months: [2, 3, 4] },
   { id: "summer", label: "Summer", months: [5, 6, 7] },

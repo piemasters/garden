@@ -36,6 +36,8 @@ export interface MonthLook {
   flower?: string;
   flowerHex?: string;
   scent: boolean;
+  /** The crop is ready to pick this month. Blossom stays on `flower`. */
+  harvest?: boolean;
 }
 
 export interface PlantTask {

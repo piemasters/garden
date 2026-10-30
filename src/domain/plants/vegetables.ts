@@ -24,7 +24,7 @@ export const VEGETABLES: Plant[] = [
     maturity: "Baby leaves in 4–6 weeks, hearts in 8–12 weeks",
     heightM: [0.15, 0.3],
     spreadM: [0.15, 0.25],
-    months: year([{ from: 4, to: 8 }]),
+    months: year([{ from: 4, to: 8, harvest: true }]),
     jobs: [
       {
         month: 2,
@@ -128,8 +128,9 @@ export const VEGETABLES: Plant[] = [
     spreadM: [0.3, 0.4],
     months: year([
       { from: 3, to: 3 },
-      { from: 4, to: 5, flower: "white", flowerHex: "#f3f3f0" },
-      { from: 6, to: 6 },
+      { from: 4, to: 4, flower: "white", flowerHex: "#f3f3f0" },
+      { from: 5, to: 5, flower: "white", flowerHex: "#f3f3f0", harvest: true },
+      { from: 6, to: 6, harvest: true },
     ]),
     jobs: [
       {
@@ -178,7 +179,10 @@ export const VEGETABLES: Plant[] = [
     maturity: "Early kinds in about 12 weeks",
     heightM: [0.2, 0.3],
     spreadM: [0.05, 0.1],
-    months: year([{ from: 4, to: 8 }]),
+    months: year([
+      { from: 4, to: 4 },
+      { from: 5, to: 8, harvest: true },
+    ]),
     jobs: [
       {
         month: 3,
@@ -229,7 +233,7 @@ export const VEGETABLES: Plant[] = [
     spreadM: [0.3, 0.4],
     months: year([
       { from: 5, to: 5 },
-      { from: 6, to: 8, flower: "white", flowerHex: "#f7f7f4" },
+      { from: 6, to: 8, flower: "white", flowerHex: "#f7f7f4", harvest: true },
     ]),
     jobs: [
       {
@@ -283,8 +287,9 @@ export const VEGETABLES: Plant[] = [
     spreadM: [0.2, 0.3],
     months: year([
       { from: 3, to: 3 },
-      { from: 4, to: 5, flower: "white", flowerHex: "#f4f4f1" },
-      { from: 6, to: 6 },
+      { from: 4, to: 4, flower: "white", flowerHex: "#f4f4f1" },
+      { from: 5, to: 5, flower: "white", flowerHex: "#f4f4f1", harvest: true },
+      { from: 6, to: 6, harvest: true },
     ]),
     jobs: [
       {
@@ -333,7 +338,10 @@ export const VEGETABLES: Plant[] = [
     maturity: "New potatoes about 14 weeks after planting",
     heightM: [0.5, 0.7],
     spreadM: [0.4, 0.5],
-    months: year([{ from: 3, to: 7 }]),
+    months: year([
+      { from: 3, to: 5 },
+      { from: 6, to: 7, harvest: true },
+    ]),
     jobs: [
       {
         month: 1,
@@ -383,7 +391,10 @@ export const VEGETABLES: Plant[] = [
     maturity: "Bulbs ready about 20 weeks from a spring planting",
     heightM: [0.3, 0.45],
     spreadM: [0.1, 0.15],
-    months: year([{ from: 3, to: 7 }]),
+    months: year([
+      { from: 3, to: 6 },
+      { from: 7, to: 7, harvest: true },
+    ]),
     jobs: [
       {
         month: 2,
@@ -426,8 +437,9 @@ export const VEGETABLES: Plant[] = [
     heightM: [0.4, 0.5],
     spreadM: [0.1, 0.2],
     months: year([
-      { from: 5, to: 11 },
-      { from: 0, to: 2 },
+      { from: 5, to: 7 },
+      { from: 8, to: 11, harvest: true },
+      { from: 0, to: 2, harvest: true },
     ]),
     jobs: [
       {
@@ -480,7 +492,8 @@ export const VEGETABLES: Plant[] = [
     spreadM: [0.8, 1],
     months: year([
       { from: 4, to: 4 },
-      { from: 5, to: 8, flower: "yellow", flowerHex: "#f0c429" },
+      { from: 5, to: 5, flower: "yellow", flowerHex: "#f0c429" },
+      { from: 6, to: 8, flower: "yellow", flowerHex: "#f0c429", harvest: true },
     ]),
     jobs: [
       {
@@ -531,7 +544,7 @@ export const VEGETABLES: Plant[] = [
     spreadM: [0.3, 0.4],
     months: year([
       { from: 4, to: 5 },
-      { from: 6, to: 8, flower: "red", flowerHex: "#c4392a" },
+      { from: 6, to: 8, flower: "red", flowerHex: "#c4392a", harvest: true },
     ]),
     jobs: [
       {
@@ -633,8 +646,9 @@ export const VEGETABLES: Plant[] = [
     heightM: [0.6, 0.9],
     spreadM: [0.4, 0.6],
     months: year([
-      { from: 5, to: 11 },
-      { from: 0, to: 2 },
+      { from: 5, to: 7 },
+      { from: 8, to: 11, harvest: true },
+      { from: 0, to: 2, harvest: true },
     ]),
     jobs: [
       {
@@ -685,7 +699,8 @@ export const VEGETABLES: Plant[] = [
     spreadM: [0.1, 0.15],
     months: year([
       { from: 10, to: 11 },
-      { from: 0, to: 5 },
+      { from: 0, to: 4 },
+      { from: 5, to: 5, harvest: true },
     ]),
     jobs: [
       {
@@ -728,7 +743,11 @@ export const VEGETABLES: Plant[] = [
     maturity: "Roots from autumn, about 30 weeks from sowing",
     heightM: [0.3, 0.45],
     spreadM: [0.15, 0.2],
-    months: year([{ from: 4, to: 10 }]),
+    months: year([
+      { from: 4, to: 8 },
+      { from: 9, to: 11, harvest: true },
+      { from: 0, to: 1, harvest: true },
+    ]),
     jobs: [
       {
         month: 3,
@@ -778,8 +797,9 @@ export const VEGETABLES: Plant[] = [
     heightM: [0.7, 1],
     spreadM: [0.5, 0.6],
     months: year([
-      { from: 4, to: 11 },
-      { from: 0, to: 1 },
+      { from: 4, to: 8 },
+      { from: 9, to: 11, harvest: true },
+      { from: 0, to: 1, harvest: true },
     ]),
     jobs: [
       {
@@ -828,7 +848,7 @@ export const VEGETABLES: Plant[] = [
     maturity: "Roots in about 4 weeks",
     heightM: [0.1, 0.15],
     spreadM: [0.05, 0.1],
-    months: year([{ from: 3, to: 8 }]),
+    months: year([{ from: 3, to: 8, harvest: true }]),
     jobs: [
       {
         month: 2,
@@ -877,8 +897,9 @@ export const VEGETABLES: Plant[] = [
     heightM: [0.3, 0.45],
     spreadM: [0.4, 0.5],
     months: year([
-      { from: 5, to: 11 },
-      { from: 0, to: 1 },
+      { from: 5, to: 8 },
+      { from: 9, to: 11, harvest: true },
+      { from: 0, to: 1, harvest: true },
     ]),
     jobs: [
       {
