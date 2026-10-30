@@ -46,7 +46,7 @@ export function AppHeader({
             <Link
               to="/gardens/$gardenId"
               params={{ gardenId }}
-              activeOptions={{ exact: true }}
+              activeOptions={{ exact: true, includeSearch: false }}
               className={gardenLinkClass}
             >
               Plan

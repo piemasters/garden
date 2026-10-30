@@ -18,16 +18,22 @@ import { Card } from "#/components/generic/card";
 import { plantPhoto } from "#/domain/plant-photos";
 import { PlantImage, PlantPhotoCredit } from "./plant-image";
 
-export function PlantFacts({ plant }: { plant: Plant }) {
+export function PlantFacts({ plant, onBack }: { plant: Plant; onBack?: () => void }) {
   const { range } = useUnits();
   const height = range(plant.heightM);
   const spread = range(plant.spreadM);
   return (
     <article className="mx-auto max-w-3xl space-y-8">
       <p>
-        <Link to="/plants" className="text-sm text-leaf underline">
-          Back to the catalogue
-        </Link>
+        {onBack ? (
+          <button type="button" className="text-sm text-leaf underline" onClick={onBack}>
+            Back to the plan
+          </button>
+        ) : (
+          <Link to="/plants" className="text-sm text-leaf underline">
+            Back to the catalogue
+          </Link>
+        )}
       </p>
       <header>
         <p className="text-sm uppercase tracking-wide text-soil">

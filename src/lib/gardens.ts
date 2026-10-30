@@ -24,7 +24,7 @@ export function createGarden(
     updatedAt: now,
     buildingsLoaded: false,
     buildingError: null,
-    showUnsuitable: false,
+    showUnsuitable: true,
     showBedNames: false,
     showShade: true,
     showSlope: true,

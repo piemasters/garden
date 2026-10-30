@@ -11,6 +11,14 @@ import { useDaylight } from "./use-daylight";
 import { useDrawing } from "./use-drawing";
 import { useShapeEdits } from "./use-shape-edits";
 
+type PanelSize = "short" | "tall" | "full";
+
+const NEXT_PANEL_SIZE: Record<PanelSize, PanelSize> = {
+  short: "tall",
+  tall: "full",
+  full: "short",
+};
+
 export function GardenDesigner({ gardenId, view }: { gardenId: string; view: "plan" | "orbit" }) {
   const { ready, garden, update } = useGarden(gardenId);
   if (!ready) return <p className="min-h-0 flex-1 p-6 text-sm">Loading garden…</p>;
@@ -41,7 +49,7 @@ function DesignerBody({
   const [selectedPlacementId, setSelectedPlacementId] = useState<string | null>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [month, setMonth] = useState(new Date().getMonth());
-  const [panelExpanded, setPanelExpanded] = useState(false);
+  const [panelSize, setPanelSize] = useState<PanelSize>("short");
   const [scale, setScale] = useState<{ metres: number; pixels: number } | null>(null);
   const [bedLabels, setBedLabels] = useState<{ id: string; name: string; x: number; y: number }[]>(
     [],
@@ -94,8 +102,8 @@ function DesignerBody({
         view={view}
         month={month}
         onMonth={setMonth}
-        panelExpanded={panelExpanded}
-        onTogglePanel={() => setPanelExpanded((expanded) => !expanded)}
+        panelSize={panelSize}
+        onTogglePanel={() => setPanelSize((size) => NEXT_PANEL_SIZE[size])}
         samples={samples}
         activeBed={activeBed}
         selectedBedId={selectedBedId}
@@ -129,7 +137,7 @@ function DesignerBody({
         handleSpots={handleSpots}
         onHandleSpots={setHandleSpots}
         pointerRef={pointerRef}
-        panelExpanded={panelExpanded}
+        panelSize={panelSize}
         armedPlantId={armedPlantId}
         selectedBedId={selectedBedId}
         setSelectedBedId={setSelectedBedId}

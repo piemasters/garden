@@ -23,7 +23,7 @@ export function DesignerAside({
   view,
   month,
   onMonth,
-  panelExpanded,
+  panelSize,
   onTogglePanel,
   samples,
   activeBed,
@@ -41,7 +41,7 @@ export function DesignerAside({
   view: "plan" | "orbit";
   month: number;
   onMonth: (month: number) => void;
-  panelExpanded: boolean;
+  panelSize: "short" | "tall" | "full";
   onTogglePanel: () => void;
   samples: SunSample[];
   activeBed: Garden["beds"][number] | null;
@@ -103,7 +103,7 @@ export function DesignerAside({
         showSlope={garden.showSlope !== false}
         onShowSlope={(showSlope) => update((current) => ({ ...current, showSlope }))}
         view={view}
-        panelExpanded={panelExpanded}
+        panelSize={panelSize}
         onTogglePanel={onTogglePanel}
         attribution={garden.attribution}
       />

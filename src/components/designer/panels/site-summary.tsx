@@ -16,7 +16,7 @@ export function SiteSummary({
   showSlope,
   onShowSlope,
   view,
-  panelExpanded,
+  panelSize,
   onTogglePanel,
   attribution,
 }: {
@@ -32,7 +32,7 @@ export function SiteSummary({
   showSlope: boolean;
   onShowSlope: (value: boolean) => void;
   view: "plan" | "orbit";
-  panelExpanded: boolean;
+  panelSize: "short" | "tall" | "full";
   onTogglePanel: () => void;
   attribution: string | null;
 }) {
@@ -122,11 +122,16 @@ export function SiteSummary({
       <button
         className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink/70 hover:bg-card hover:text-leaf max-lg:portrait:inline-flex"
         type="button"
-        aria-pressed={panelExpanded}
-        aria-label={panelExpanded ? "Show the plan" : "Expand the panel"}
+        aria-label={
+          panelSize === "full"
+            ? "Show the plan"
+            : panelSize === "tall"
+              ? "Fill the screen with the panel"
+              : "Make the panel taller"
+        }
         onClick={onTogglePanel}
       >
-        <PanelCaret up={!panelExpanded} />
+        <PanelCaret up={panelSize !== "full"} />
       </button>
     </div>
   );

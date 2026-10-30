@@ -11,6 +11,12 @@ import { ShapeMenu } from "./panels/shape-menu";
 import type { Drawing } from "./use-drawing";
 import type { ShapeEdits } from "./use-shape-edits";
 
+const planHeight = {
+  short: "h-[45vh]",
+  tall: "h-1/3",
+  full: "h-0 max-lg:portrait:hidden lg:h-auto",
+} as const;
+
 /** A finger dragged across the plan can select the canvas and paint it blue. */
 function clearTouchSelection(event: { pointerType: string; currentTarget: HTMLElement }) {
   if (event.pointerType === "mouse") return;
@@ -35,7 +41,7 @@ export function PlanStage({
   handleSpots,
   onHandleSpots,
   pointerRef,
-  panelExpanded,
+  panelSize,
   armedPlantId,
   selectedBedId,
   setSelectedBedId,
@@ -62,7 +68,7 @@ export function PlanStage({
   handleSpots: HandleSpots | null;
   onHandleSpots: Dispatch<SetStateAction<HandleSpots | null>>;
   pointerRef: { current: (clientX: number, clientY: number) => Point | null };
-  panelExpanded: boolean;
+  panelSize: "short" | "tall" | "full";
   armedPlantId: string | null;
   selectedBedId: string | null;
   setSelectedBedId: Dispatch<SetStateAction<string | null>>;
@@ -92,7 +98,7 @@ export function PlanStage({
     <>
       <div
         ref={planRef}
-        className={`relative touch-none select-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] [&_canvas]:select-none [&_canvas]:[-webkit-tap-highlight-color:transparent] [&_canvas]:[-webkit-touch-callout:none] order-1 shrink-0 overflow-hidden lg:order-2 lg:h-auto lg:min-h-0 lg:flex-1 max-lg:landscape:h-auto max-lg:landscape:min-h-0 max-lg:landscape:shrink max-lg:landscape:flex-1 ${panelExpanded ? "h-0 max-lg:portrait:hidden lg:h-auto" : "h-[45vh]"}`}
+        className={`relative touch-none select-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] [&_canvas]:select-none [&_canvas]:[-webkit-tap-highlight-color:transparent] [&_canvas]:[-webkit-touch-callout:none] order-1 shrink-0 overflow-hidden lg:order-2 lg:h-auto lg:min-h-0 lg:flex-1 max-lg:landscape:h-auto max-lg:landscape:min-h-0 max-lg:landscape:shrink max-lg:landscape:flex-1 ${planHeight[panelSize]}`}
         onPointerMove={clearTouchSelection}
         onContextMenu={(event) => {
           const hit = edits.shapeAt(event);
