@@ -12,7 +12,7 @@ function PlantingsRoute() {
   return (
     <>
       <AppHeader gardenId={gardenId} />
-      <main className="mx-auto max-w-3xl px-5 py-8">
+      <main className="mx-auto max-w-5xl px-5 py-8">
         <Plantings gardenId={gardenId} />
       </main>
     </>

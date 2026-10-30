@@ -4,8 +4,9 @@ import type { Garden } from "#/domain/types";
 import { plantedCount } from "#/lib/fill-cap";
 import { PlantedGroups, groupPlantings } from "#/components/designer/panels/planted-groups";
 import { Tabs } from "#/components/generic/tabs";
+import { PlantingTimeline } from "./planting-timeline";
 
-type PlantingView = "beds" | "all";
+type PlantingView = "beds" | "all" | "timeline";
 
 export function PlantingList({
   garden,
@@ -23,7 +24,8 @@ export function PlantingList({
       <p className="text-sm uppercase tracking-wide text-soil">{garden.site.name}</p>
       <h1 className="mt-1 text-4xl">Plantings</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink/70">
-        See the plants in each bed, or a total across the garden.{" "}
+        See the plants in each bed, a total across the garden, or when each one flowers or is ready
+        to pick.{" "}
         <Link
           to="/gardens/$gardenId"
           params={{ gardenId: garden.id }}
@@ -40,8 +42,8 @@ export function PlantingList({
             className="mt-6"
             label="Plantings"
             value={view}
-            options={["beds", "all"]}
-            labels={{ beds: "Beds", all: "All" }}
+            options={["beds", "all", "timeline"]}
+            labels={{ beds: "Beds", all: "All", timeline: "Timeline" }}
             onChange={setView}
           />
           {view === "beds" ? (
@@ -71,7 +73,7 @@ export function PlantingList({
                 );
               })}
             </div>
-          ) : (
+          ) : view === "all" ? (
             <section className="mt-8" role="tabpanel">
               <h2 className="flex items-baseline justify-between text-2xl">
                 All beds
@@ -88,6 +90,8 @@ export function PlantingList({
                 />
               )}
             </section>
+          ) : (
+            <PlantingTimeline groups={totalGroups} today={month} />
           )}
         </>
       )}

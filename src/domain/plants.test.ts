@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
-import { flowersInMonth, getPlant, harvestsInMonth, hasFlowerColour, PLANTS } from "./plants";
+import {
+  flowersInMonth,
+  getPlant,
+  harvestsInMonth,
+  hasFlowerColour,
+  PLANTS,
+  seasonInMonth,
+} from "./plants";
 
 describe("plant catalog", () => {
   it("has a full record for each plant, bulb and seed", () => {
@@ -65,5 +72,14 @@ describe("plant catalog", () => {
     expect(apple && harvestsInMonth(apple, 4)).toBe(false);
     expect(strawberry && harvestsInMonth(strawberry, 5)).toBe(true);
     expect(strawberry && harvestsInMonth(strawberry, 4)).toBe(false);
+  });
+
+  it("uses bloom for flowers and harvest for crops", () => {
+    const tulip = getPlant("tulipa-olympic-flame");
+    const tomato = getPlant("solanum-lycopersicum");
+    expect(tulip && seasonInMonth(tulip, 4)).toBe(true);
+    expect(tulip && seasonInMonth(tulip, 0)).toBe(false);
+    expect(tomato && seasonInMonth(tomato, 6)).toBe(true);
+    expect(tomato && seasonInMonth(tomato, 4)).toBe(false);
   });
 });

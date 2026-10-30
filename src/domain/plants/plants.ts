@@ -67,6 +67,11 @@ export function harvestsInMonth(plant: Plant, month: number): boolean {
   return look.flower != null && HARVEST_NOTE.test(look.flower);
 }
 
+/** Flowers are in bloom. Vegetables and fruit are ready to pick. */
+export function seasonInMonth(plant: Plant, month: number): boolean {
+  return plant.group === "flower" ? flowersInMonth(plant, month) : harvestsInMonth(plant, month);
+}
+
 export const SEASONS = [
   { id: "spring", label: "Spring", months: [2, 3, 4] },
   { id: "summer", label: "Summer", months: [5, 6, 7] },
